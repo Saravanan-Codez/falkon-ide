@@ -18,18 +18,23 @@ export function update() {
 function performUpdate() {
   if (!minimapEl || !highlightLayer) return;
   const text = editor.getActiveContent();
-  const lines = text.split('\n');
-
-  // Cap the number of lines in the minimap to prevent extreme memory usage
-  const displayLines = lines.slice(0, 1000);
-  const maxLen = 100; // Fixed max width for performance
 
   let html = '';
-  for (let i = 0; i < displayLines.length; i++) {
-    const line = displayLines[i];
-    const width = Math.min((line.length / maxLen) * 100, 100);
-    html += `<div class="minimap-line" style="width: ${width}%" data-line="${i + 1}"></div>`;
+  let lineCount = 0;
+  let pos = 0;
+  const maxLines = 1000;
+  const maxLen = 100;
+
+  while (lineCount < maxLines && pos < text.length) {
+    let nextNewline = text.indexOf('\n', pos);
+    if (nextNewline === -1) nextNewline = text.length;
+    const lineLength = nextNewline - pos;
+    const width = Math.min((lineLength / maxLen) * 100, 100);
+    html += `<div class="minimap-line" style="width: ${width}%" data-line="${lineCount + 1}"></div>`;
+    pos = nextNewline + 1;
+    lineCount++;
   }
+
   minimapEl.innerHTML = html;
 }
 
@@ -40,7 +45,16 @@ export function init() {
     if (!line) return;
     const lineNum = parseInt(line, 10);
     const text = editor.getActiveContent();
-    const idx = text.split('\n').slice(0, lineNum - 1).join('\n').length;
+
+    let idx = 0;
+    let currentLine = 1;
+    while (currentLine < lineNum) {
+      const nextNewline = text.indexOf('\n', idx);
+      if (nextNewline === -1) break;
+      idx = nextNewline + 1;
+      currentLine++;
+    }
+
     editorEl.focus();
     editorEl.setSelectionRange(idx, idx);
     editorEl.scrollTop = (lineNum - 5) * 25.6;
