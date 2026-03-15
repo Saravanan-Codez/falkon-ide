@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const os = require('os');
 const { spawn } = require('child_process');
 
 let mainWindow;
@@ -12,8 +13,8 @@ function createWindow() {
     backgroundColor: '#0f111a',
     show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
     titleBarStyle: 'hiddenInset'
@@ -62,21 +63,41 @@ ipcMain.handle('save-file', async (_, filePath, content) => {
 });
 
 ipcMain.handle('read-file', async (_, filePath) => {
+  if (typeof filePath !== 'string') throw new Error('Invalid filePath');
   return fs.readFile(filePath, 'utf8');
 });
 
 ipcMain.handle('read-dir', async (_, dirPath) => {
+  if (typeof dirPath !== 'string') throw new Error('Invalid dirPath');
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
   return entries.map(e => ({ name: e.name, isDirectory: e.isDirectory() }));
 });
 
 ipcMain.handle('write-file', async (_, filePath, content) => {
+  if (typeof filePath !== 'string') throw new Error('Invalid filePath');
   await fs.writeFile(filePath, content, 'utf8');
 });
 
 ipcMain.handle('file-exists', async (_, filePath) => {
+  if (typeof filePath !== 'string') return false;
   try {
     await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle('create-temp-file', async (_, content) => {
+  const tmpPath = path.join(os.tmpdir(), `cimple_run_${Date.now()}.cimple`);
+  await fs.writeFile(tmpPath, content || '', 'utf8');
+  return tmpPath;
+});
+
+ipcMain.handle('delete-file', async (_, filePath) => {
+  if (typeof filePath !== 'string') return false;
+  try {
+    await fs.unlink(filePath);
     return true;
   } catch {
     return false;

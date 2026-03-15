@@ -3,8 +3,9 @@
  */
 import * as fileExplorer from './file-explorer.js';
 import * as workspace from './workspace.js';
+import { escapeHtml, generateId } from './utils.js';
 
-const { ipcRenderer } = require('electron');
+const { invoke, on, process } = window.electronAPI;
 
 const DEFAULT_SHELL = process.platform === 'win32'
   ? (process.env.POWERSHELL || process.env.COMSPEC || 'powershell.exe')
@@ -31,14 +32,9 @@ const sessions = new Map();
 let activeSessionId = null;
 
 function getDefaultCwd() {
-  return workspace.getWorkspacePath() || process.cwd?.() || '.';
+  return workspace.getWorkspacePath() || '.';
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 function setOutput(text) {
   if (!terminalOutput) return;
@@ -86,7 +82,7 @@ function selectSession(id) {
 function closeSession(id) {
   const session = sessions.get(id);
   if (!session) return;
-  ipcRenderer.invoke('terminal-kill', { sessionId: id });
+  invoke('terminal-kill', { sessionId: id });
   sessions.delete(id);
   if (activeSessionId === id) {
     const remaining = Array.from(sessions.keys());
@@ -136,7 +132,7 @@ async function spawnSession(session) {
   session.historyIndex = session.history.length;
   renderTabs();
   try {
-    await ipcRenderer.invoke('terminal-spawn', { sessionId: session.id, cwd: session.cwd, shell: DEFAULT_SHELL, args: SHELL_ARGS });
+    await invoke('terminal-spawn', { sessionId: session.id, cwd: session.cwd, shell: DEFAULT_SHELL, args: SHELL_ARGS });
     session.status = 'Running';
   } catch (err) {
     session.status = 'Error';
@@ -147,7 +143,7 @@ async function spawnSession(session) {
 }
 
 function createSession(options = {}) {
-  const id = 'term-' + Date.now();
+  const id = generateId('term');
   const cwd = options.cwd || getDefaultCwd();
   const session = {
     id,
@@ -193,7 +189,7 @@ function clearSessionOutput() {
 function killActiveSession() {
   const session = getActiveSession();
   if (!session) return;
-  ipcRenderer.invoke('terminal-kill', { sessionId: session.id });
+  invoke('terminal-kill', { sessionId: session.id });
   session.status = 'Killed';
   renderTabs();
 }
@@ -201,7 +197,7 @@ function killActiveSession() {
 function restartActiveSession() {
   const session = getActiveSession();
   if (!session) return;
-  ipcRenderer.invoke('terminal-kill', { sessionId: session.id }).finally(() => {
+  invoke('terminal-kill', { sessionId: session.id }).finally(() => {
     session.output = '';
     session.status = 'Restarting';
     renderTabs();
@@ -220,23 +216,23 @@ function sendCommand(command) {
   if (!session) return;
   pushHistory(session, command);
   updateHint(session, '');
-  ipcRenderer.invoke('terminal-write', { sessionId: session.id, command: command + '\n' });
+  invoke('terminal-write', { sessionId: session.id, command: command + '\n' });
 }
 
 function sendSigint() {
   const session = getActiveSession();
   if (!session) return;
-  ipcRenderer.invoke('terminal-sigint', { sessionId: session.id });
+  invoke('terminal-sigint', { sessionId: session.id });
 }
 
 export function init() {
-  ipcRenderer.on('terminal-data', (_, payload) => {
+  on('terminal-data', (_, payload) => {
     if (payload?.sessionId && payload.data) {
       handleOutput(payload.sessionId, payload.data);
     }
   });
 
-  ipcRenderer.on('terminal-exit', (_, payload) => {
+  on('terminal-exit', (_, payload) => {
     if (payload?.sessionId) {
       handleExit(payload.sessionId, payload.code);
     }

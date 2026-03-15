@@ -3,15 +3,15 @@
  */
 import { state } from './state.js';
 import * as editor from './editor.js';
+import { escapeHtml } from './utils.js';
 
-const { ipcRenderer } = require('electron');
-const path = require('path');
+const { invoke, path } = window.electronAPI;
 
 let fileTreeCache = {};
 
 async function loadDir(dirPath, parentEl, depth = 0) {
   try {
-    const entries = await ipcRenderer.invoke('read-dir', dirPath);
+    const entries = await invoke('read-dir', dirPath);
     const sorted = entries.sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       return a.name.localeCompare(b.name);
@@ -54,14 +54,9 @@ async function loadDir(dirPath, parentEl, depth = 0) {
   }
 }
 
-function escapeHtml(t) {
-  const d = document.createElement('div');
-  d.textContent = t;
-  return d.innerHTML;
-}
 
 export async function openFolder() {
-  const newPath = await ipcRenderer.invoke('open-folder');
+  const newPath = await invoke('open-folder');
   if (!newPath) return;
   const workspaceModule = await import('./workspace.js');
   await workspaceModule.setWorkspacePath(newPath);
@@ -79,7 +74,7 @@ export async function openFolder() {
 
 export async function openFile(filePath) {
   try {
-    const content = await ipcRenderer.invoke('read-file', filePath);
+    const content = await invoke('read-file', filePath);
     const name = filePath.split(/[/\\]/).pop();
     editor.openTab({ id: 'file-' + filePath, title: name, path: filePath, content, dirty: false });
   } catch (err) {
@@ -90,7 +85,7 @@ export async function openFile(filePath) {
 export async function saveFile(tab) {
   if (!tab.path) return saveFileAs(tab);
   try {
-    await ipcRenderer.invoke('write-file', tab.path, tab.content);
+    await invoke('write-file', tab.path, tab.content);
     tab.dirty = false;
     editor.updateTabDirty(tab.id);
     return tab.path;
@@ -101,20 +96,17 @@ export async function saveFile(tab) {
 }
 
 export async function saveFileAs(tab) {
-  const path = await ipcRenderer.invoke('save-file', null, tab.content);
-  if (path) {
-    tab.path = path;
-    tab.title = path.split(/[/\\]/).pop();
+  const filePath = await invoke('save-file', null, tab.content);
+  if (filePath) {
+    tab.path = filePath;
+    tab.title = filePath.split(/[/\\]/).pop();
     tab.dirty = false;
     editor.updateTabDirty(tab.id);
     editor.renderTabs();
   }
-  return path;
+  return filePath;
 }
 
-export function getWorkspacePath() {
-  return state.workspacePath;
-}
 
 export async function refreshFolder() {
   const path = state.workspacePath;

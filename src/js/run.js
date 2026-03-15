@@ -4,10 +4,9 @@
 import { state } from './state.js';
 import * as editor from './editor.js';
 import * as workspace from './workspace.js';
+import { safeParse } from './utils.js';
 
-const { ipcRenderer } = require('electron');
-const { join, dirname } = require('path');
-const { tmpdir } = require('os');
+const { invoke, on, path } = window.electronAPI;
 
 const STORAGE_CONFIG = 'cimple.runConfig';
 const STORAGE_HISTORY = 'cimple.runHistory';
@@ -22,15 +21,6 @@ const runBtn = document.getElementById('run-btn');
 const runHistoryList = document.getElementById('run-history-list');
 const runHistoryClear = document.getElementById('run-history-clear');
 const runLastResultEl = document.getElementById('run-last-result');
-
-function safeParse(value) {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
 
 function persistRunConfig() {
   try {
@@ -156,18 +146,16 @@ function computeCwd() {
   }
   const possibleEntry = state.runConfig.entryPath || editor.getActiveTab()?.path;
   if (possibleEntry) {
-    return dirname(possibleEntry);
+    return path.dirname(possibleEntry);
   }
-  return state.workspacePath || process.cwd();
+  return state.workspacePath || '';
 }
 
 async function writeTempFile(content) {
-  const { writeFile, unlink } = require('fs').promises;
-  const tmpPath = join(tmpdir(), `cimple_run_${Date.now()}.cimple`);
-  await writeFile(tmpPath, content || '', 'utf8');
+  const tmpPath = await invoke('create-temp-file', content);
   return {
     path: tmpPath,
-    cleanup: async () => { await unlink(tmpPath).catch(() => {}); }
+    cleanup: async () => { await invoke('delete-file', tmpPath); }
   };
 }
 
@@ -215,7 +203,7 @@ async function runCurrent() {
   }
 
   try {
-    const result = await ipcRenderer.invoke('run-cimple', runtimeEntry, { args, cwd });
+    const result = await invoke('run-cimple', runtimeEntry, { args, cwd });
     const historyRecord = {
       entry: runtimeEntry,
       args: state.runConfig.args || '',
@@ -247,7 +235,7 @@ export function init() {
   updateFormFields();
   updateLastResult();
 
-  ipcRenderer.on('run-output', (_, data) => appendRunOutput(data));
+  on('run-output', (_, data) => appendRunOutput(data));
 
   runEntrySelect?.addEventListener('change', (e) => {
     state.runConfig.entryPath = e.target.value;
@@ -270,7 +258,7 @@ export function init() {
     updateFormFields();
   });
   runBrowseEntry?.addEventListener('click', async () => {
-    const selected = await ipcRenderer.invoke('open-file');
+    const selected = await invoke('open-file');
     if (selected) {
       state.runConfig.entryPath = selected;
       persistRunConfig();

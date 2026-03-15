@@ -3,6 +3,7 @@
  */
 import { CIMPLE_KEYWORDS, CIMPLE_BUILTINS } from './syntax.js';
 import * as editor from './editor.js';
+import { escapeHtml } from './utils.js';
 
 const editorEl = document.getElementById('code-editor');
 let popupEl = null;

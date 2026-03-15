@@ -1,6 +1,8 @@
 /**
  * Cimple syntax highlighter (Python-like)
  */
+import { escapeHtml } from './utils.js';
+
 const CIMPLE_KEYWORDS = new Set([
   'def', 'class', 'if', 'elif', 'else', 'for', 'while', 'in', 'return', 'yield',
   'break', 'continue', 'pass', 'raise', 'try', 'except', 'finally', 'with', 'as',

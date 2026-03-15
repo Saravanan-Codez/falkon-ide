@@ -8,6 +8,7 @@ import * as themes from './themes.js';
 import * as zenMode from './zen-mode.js';
 import * as autosave from './autosave.js';
 import { showFindWidget } from './find.js';
+import { escapeHtml } from './utils.js';
 
 const commands = [
   { id: 'new-file', label: 'New File', shortcut: 'Ctrl+N', fn: () => editor.addTab() },
@@ -101,11 +102,6 @@ function runSelected() {
   if (sel) sel.click();
 }
 
-function escapeHtml(t) {
-  const d = document.createElement('div');
-  d.textContent = t;
-  return d.innerHTML;
-}
 
 export function show() {
   createPalette();
