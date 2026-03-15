@@ -63,19 +63,23 @@ ipcMain.handle('save-file', async (_, filePath, content) => {
 });
 
 ipcMain.handle('read-file', async (_, filePath) => {
+  if (typeof filePath !== 'string') throw new Error('Invalid filePath');
   return fs.readFile(filePath, 'utf8');
 });
 
 ipcMain.handle('read-dir', async (_, dirPath) => {
+  if (typeof dirPath !== 'string') throw new Error('Invalid dirPath');
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
   return entries.map(e => ({ name: e.name, isDirectory: e.isDirectory() }));
 });
 
 ipcMain.handle('write-file', async (_, filePath, content) => {
+  if (typeof filePath !== 'string') throw new Error('Invalid filePath');
   await fs.writeFile(filePath, content, 'utf8');
 });
 
 ipcMain.handle('file-exists', async (_, filePath) => {
+  if (typeof filePath !== 'string') return false;
   try {
     await fs.access(filePath);
     return true;
@@ -91,6 +95,7 @@ ipcMain.handle('create-temp-file', async (_, content) => {
 });
 
 ipcMain.handle('delete-file', async (_, filePath) => {
+  if (typeof filePath !== 'string') return false;
   try {
     await fs.unlink(filePath);
     return true;

@@ -1,12 +1,30 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
 
+const ALLOWED_INVOKE_CHANNELS = [
+  'open-folder', 'open-file', 'save-file', 'read-file', 'read-dir',
+  'write-file', 'file-exists', 'create-temp-file', 'delete-file',
+  'terminal-spawn', 'terminal-write', 'terminal-kill', 'terminal-sigint',
+  'git-branch', 'git-status', 'git-is-repo', 'run-cimple'
+];
+
+const ALLOWED_ON_CHANNELS = [
+  'terminal-data', 'terminal-exit', 'run-output'
+];
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  invoke: (channel, ...args) => {
+    if (ALLOWED_INVOKE_CHANNELS.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    return Promise.reject(new Error(`Unauthorized IPC channel: ${channel}`));
+  },
   on: (channel, callback) => {
-    const subscription = (event, ...args) => callback(event, ...args);
-    ipcRenderer.on(channel, subscription);
-    return () => ipcRenderer.removeListener(channel, subscription);
+    if (ALLOWED_ON_CHANNELS.includes(channel)) {
+      const subscription = (event, ...args) => callback(event, ...args);
+      ipcRenderer.on(channel, subscription);
+      return () => ipcRenderer.removeListener(channel, subscription);
+    }
   },
   path: {
     join: (...args) => path.join(...args),
