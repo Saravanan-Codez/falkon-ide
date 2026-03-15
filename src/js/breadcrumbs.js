@@ -5,7 +5,7 @@ import { state } from './state.js';
 import * as editor from './editor.js';
 import * as fileExplorer from './file-explorer.js';
 
-const path = require('path');
+const { path } = window.electronAPI;
 const breadcrumbsEl = document.getElementById('breadcrumbs');
 
 function escapeHtml(t) {

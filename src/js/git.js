@@ -3,7 +3,7 @@
  */
 import { state } from './state.js';
 
-const { ipcRenderer } = require('electron');
+const { invoke } = window.electronAPI;
 
 function escapeHtml(text) {
   const div = document.createElement('div');
@@ -58,12 +58,12 @@ export async function refreshSourceList() {
     return;
   }
   try {
-    const isRepo = await ipcRenderer.invoke('git-is-repo', cwd);
+    const isRepo = await invoke('git-is-repo', cwd);
     if (!isRepo) {
       listEl.innerHTML = '<p class="source-hint">Not a Git repository.</p>';
       return;
     }
-    const status = await ipcRenderer.invoke('git-status', cwd);
+    const status = await invoke('git-status', cwd);
     const lines = (status || '').trim().split('\n').filter(Boolean);
     const staged = [];
     const unstaged = [];
