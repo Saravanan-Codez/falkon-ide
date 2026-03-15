@@ -4,15 +4,10 @@
 import { state } from './state.js';
 import * as editor from './editor.js';
 import * as fileExplorer from './file-explorer.js';
+import { escapeHtml } from './utils.js';
 
 const path = require('path');
 const breadcrumbsEl = document.getElementById('breadcrumbs');
-
-function escapeHtml(t) {
-  const d = document.createElement('div');
-  d.textContent = t;
-  return d.innerHTML;
-}
 
 export function update() {
   if (!breadcrumbsEl) return;

@@ -3,6 +3,7 @@
  */
 import { state } from './state.js';
 import * as editor from './editor.js';
+import { escapeHtml } from './utils.js';
 
 const { ipcRenderer } = require('electron');
 const path = require('path');
@@ -54,11 +55,6 @@ async function loadDir(dirPath, parentEl, depth = 0) {
   }
 }
 
-function escapeHtml(t) {
-  const d = document.createElement('div');
-  d.textContent = t;
-  return d.innerHTML;
-}
 
 export async function openFolder() {
   const newPath = await ipcRenderer.invoke('open-folder');

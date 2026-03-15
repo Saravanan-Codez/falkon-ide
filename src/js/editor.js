@@ -2,7 +2,8 @@
  * Editor core - Tabs, content, syntax highlight, line numbers, cursor
  */
 import { state } from './state.js';
-import { highlightCimple, escapeHtml } from './syntax.js';
+import { highlightCimple } from './syntax.js';
+import { escapeHtml } from './utils.js';
 import * as fileExplorer from './file-explorer.js';
 
 const editorEl = document.getElementById('code-editor');
