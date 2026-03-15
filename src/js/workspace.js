@@ -4,22 +4,13 @@
 import { state } from './state.js';
 import * as editor from './editor.js';
 import * as git from './git.js';
+import { safeParse } from './utils.js';
 
 const RECENT_KEY = 'cimple.recentWorkspaces';
 const MAX_RECENT = 6;
 const emitter = new EventTarget();
 const STORAGE = typeof localStorage !== 'undefined' ? localStorage : null;
 let suppressGitEvent = false;
-
-function safeParse(value) {
-  if (!STORAGE || !value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 function persistRecent(values) {
   if (!STORAGE) return;
@@ -31,7 +22,7 @@ function persistRecent(values) {
 }
 
 function addRecent(path) {
-  const items = safeParse(STORAGE?.getItem(RECENT_KEY));
+  const items = safeParse(STORAGE?.getItem(RECENT_KEY), []);
   const filtered = items.filter(item => item !== path);
   filtered.unshift(path);
   if (filtered.length > MAX_RECENT) filtered.length = MAX_RECENT;
@@ -54,7 +45,7 @@ export function onWorkspaceChange(listener) {
 }
 
 export function getRecentWorkspaces() {
-  return safeParse(STORAGE?.getItem(RECENT_KEY));
+  return safeParse(STORAGE?.getItem(RECENT_KEY), []);
 }
 
 export async function setWorkspacePath(dir) {

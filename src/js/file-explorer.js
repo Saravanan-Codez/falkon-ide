@@ -108,9 +108,6 @@ export async function saveFileAs(tab) {
   return path;
 }
 
-export function getWorkspacePath() {
-  return state.workspacePath;
-}
 
 export async function refreshFolder() {
   const path = state.workspacePath;

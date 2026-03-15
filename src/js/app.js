@@ -17,7 +17,6 @@ import * as autocomplete from './autocomplete.js';
 import * as autosave from './autosave.js';
 import * as multiCursor from './multi-cursor.js';
 import * as workspace from './workspace.js';
-import { escapeHtml } from './utils.js';
 
 const editorEl = document.getElementById('code-editor');
 const contextMenu = document.getElementById('context-menu');

@@ -4,6 +4,7 @@
 import { state } from './state.js';
 import * as editor from './editor.js';
 import * as workspace from './workspace.js';
+import { safeParse } from './utils.js';
 
 const { ipcRenderer } = require('electron');
 const { join, dirname } = require('path');
@@ -22,15 +23,6 @@ const runBtn = document.getElementById('run-btn');
 const runHistoryList = document.getElementById('run-history-list');
 const runHistoryClear = document.getElementById('run-history-clear');
 const runLastResultEl = document.getElementById('run-last-result');
-
-function safeParse(value) {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
 
 function persistRunConfig() {
   try {
