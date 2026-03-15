@@ -18,6 +18,19 @@ const CIMPLE_BUILTINS = new Set([
   'any', 'all', 'dir', 'vars', 'id', 'hash'
 ]);
 
+export function escapeHtml(text) {
+  return text.replace(/[&<>"']/g, function(m) {
+    switch (m) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#039;';
+      default: return m;
+    }
+  });
+}
+
 export function highlightCimple(source) {
   if (!source) return '';
   return source.split('\n').map(highlightLine).join('\n');
@@ -33,19 +46,20 @@ function highlightLine(line) {
   let identifierType = ''; // 'hl-function' or 'hl-builtin' (used for class names too)
 
   while (i < n) {
-    // Handle triple quotes
-    if (line.substr(i, 3) === '"""' || line.substr(i, 3) === "'''") {
-      const q = line.substr(i, 3);
-      let end = line.indexOf(q, i + 3);
-      if (end === -1) end = n;
-      else end += 3;
-      result += `<span class="hl-string">${escapeHtml(line.slice(i, end))}</span>`;
-      i = end;
-      continue;
-    }
-    // Handle single quotes
-    if (line[i] === '"' || line[i] === "'") {
-      const q = line[i];
+    const char = line[i];
+
+    // Handle quotes
+    if (char === '"' || char === "'") {
+      if (line.startsWith('"""', i) || line.startsWith("'''", i)) {
+        const q = line.slice(i, i + 3);
+        let end = line.indexOf(q, i + 3);
+        if (end === -1) end = n;
+        else end += 3;
+        result += `<span class="hl-string">${escapeHtml(line.slice(i, end))}</span>`;
+        i = end;
+        continue;
+      }
+      const q = char;
       let end = i + 1;
       while (end < n && (line[end] !== q || line[end - 1] === '\\')) end++;
       if (end < n) end++;
@@ -54,24 +68,26 @@ function highlightLine(line) {
       continue;
     }
     // Handle comments
-    if (line[i] === '#') {
+    if (char === '#') {
       result += `<span class="hl-comment">${escapeHtml(line.slice(i))}</span>`;
       break;
     }
     // Handle numbers
-    if (/[0-9.]/.test(line[i]) && (i === 0 || /[\s(\[{,=:]/.test(line[i - 1]))) {
-      let end = i;
-      while (end < n && /[0-9.xXa-fA-F_]/.test(line[end])) end++;
-      if (line[end] === '.' && end + 1 < n && /[0-9]/.test(line[end + 1])) {
-        end++;
-        while (end < n && /[0-9eE+-]/.test(line[end])) end++;
+    if ((char >= '0' && char <= '9') || char === '.') {
+      if (i === 0 || (line[i - 1] <= ' ' || line[i - 1] === '(' || line[i - 1] === '[' || line[i - 1] === '{' || line[i - 1] === ',' || line[i - 1] === '=' || line[i - 1] === ':')) {
+        let end = i;
+        while (end < n && /[0-9.xXa-fA-F_]/.test(line[end])) end++;
+        if (line[end] === '.' && end + 1 < n && /[0-9]/.test(line[end + 1])) {
+          end++;
+          while (end < n && /[0-9eE+-]/.test(line[end])) end++;
+        }
+        result += `<span class="hl-number">${escapeHtml(line.slice(i, end))}</span>`;
+        i = end;
+        continue;
       }
-      result += `<span class="hl-number">${escapeHtml(line.slice(i, end))}</span>`;
-      i = end;
-      continue;
     }
     // Handle decorators
-    if (line[i] === '@' && (i === 0 || /\s/.test(line[i - 1]))) {
+    if (char === '@' && (i === 0 || line[i - 1] <= ' ')) {
       let end = i + 1;
       while (end < n && /[a-zA-Z0-9_]/.test(line[end])) end++;
       result += `<span class="hl-operator">@</span><span class="hl-decorator">${escapeHtml(line.slice(i + 1, end))}</span>`;
@@ -79,7 +95,7 @@ function highlightLine(line) {
       continue;
     }
     // Handle identifiers and keywords
-    if (/[a-zA-Z_]/.test(line[i])) {
+    if ((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || char === '_') {
       let end = i;
       while (end < n && /[a-zA-Z0-9_]/.test(line[end])) end++;
       const word = line.slice(i, end);
@@ -95,7 +111,7 @@ function highlightLine(line) {
           identifierType = 'hl-function';
         } else if (word === 'class') {
           expectIdentifier = true;
-          identifierType = 'hl-builtin'; // We'll use builtin color for class names or add hl-class
+          identifierType = 'hl-builtin';
         }
       } else if (CIMPLE_BUILTINS.has(word)) {
         result += `<span class="hl-builtin">${escaped}</span>`;
@@ -106,23 +122,23 @@ function highlightLine(line) {
       continue;
     }
     // Handle operators and symbols
-    if (/[+\-*\/%=<>!&|^~@]/.test(line[i])) {
-      result += `<span class="hl-operator">${escapeHtml(line[i])}</span>`;
+    if (char === '+' || char === '-' || char === '*' || char === '/' || char === '%' || char === '=' || char === '<' || char === '>' || char === '!' || char === '&' || char === '|' || char === '^' || char === '~' || char === '@') {
+      result += `<span class="hl-operator">${escapeHtml(char)}</span>`;
       i++;
       continue;
     }
     // Handle brackets, parentheses, and punctuation
-    if (/[()[\]{}:,.;]/.test(line[i])) {
-      result += `<span class="hl-symbol">${escapeHtml(line[i])}</span>`;
+    if (char === '(' || char === ')' || char === '[' || char === ']' || char === '{' || char === '}' || char === ':' || char === ',' || char === '.' || char === ';') {
+      result += `<span class="hl-symbol">${escapeHtml(char)}</span>`;
       i++;
       continue;
     }
     // Reset expectIdentifier if we hit something else (except space)
-    if (!/\s/.test(line[i])) {
+    if (char > ' ') {
       expectIdentifier = false;
     }
 
-    result += escapeHtml(line[i]);
+    result += escapeHtml(char);
     i++;
   }
   return result;

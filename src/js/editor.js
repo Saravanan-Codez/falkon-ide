@@ -64,8 +64,17 @@ function editorFromTab() {
 export function updateLineNumbers() {
   if (!lineNumbersEl) return;
   const text = getActiveContent();
-  const count = Math.max(1, text.split('\n').length);
-  lineNumbersEl.innerHTML = Array.from({ length: count }, (_, i) => i + 1).join('<br>');
+  let count = 1;
+  let pos = text.indexOf('\n');
+  while (pos !== -1) {
+    count++;
+    pos = text.indexOf('\n', pos + 1);
+  }
+  let html = '';
+  for (let i = 1; i <= count; i++) {
+    html += i + '<br>';
+  }
+  lineNumbersEl.innerHTML = html;
 }
 
 export function updateHighlight() {
@@ -79,15 +88,28 @@ export function updateCursorInfo() {
   const text = getActiveContent();
   const start = editorEl.selectionStart;
   const end = editorEl.selectionEnd;
-  const lines = text.substring(0, start).split('\n');
-  const line = lines.length;
-  const col = lines[lines.length - 1].length + 1;
+
+  let line = 1;
+  let lastNewline = -1;
+  let pos = text.indexOf('\n');
+  while (pos !== -1 && pos < start) {
+    line++;
+    lastNewline = pos;
+    pos = text.indexOf('\n', pos + 1);
+  }
+  const col = start - lastNewline;
+
   cursorPosEl.textContent = `Ln ${line}, Col ${col}`;
   if (selectionInfoEl) {
     if (start !== end) {
-      const selLines = text.substring(start, end).split('\n');
+      let selLinesCount = 1;
+      let selPos = text.indexOf('\n', start);
+      while (selPos !== -1 && selPos < end) {
+        selLinesCount++;
+        selPos = text.indexOf('\n', selPos + 1);
+      }
       selectionInfoEl.style.display = 'inline';
-      selectionInfoEl.textContent = selLines.length > 1 ? `${selLines.length} lines selected` : `${end - start} selected`;
+      selectionInfoEl.textContent = selLinesCount > 1 ? `${selLinesCount} lines selected` : `${end - start} selected`;
     } else {
       selectionInfoEl.style.display = 'none';
     }
