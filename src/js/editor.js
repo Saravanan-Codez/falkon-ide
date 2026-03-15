@@ -174,6 +174,7 @@ export function openTab(tab) {
 }
 
 export async function refreshGitStatus() {
+  const { invoke } = window.electronAPI;
   const cwd = state.workspacePath;
   if (!cwd) {
     state.gitBranch = null;
@@ -188,13 +189,13 @@ export async function refreshGitStatus() {
     return;
   }
   try {
-    const isRepo = await ipcRenderer.invoke('git-is-repo', cwd);
+    const isRepo = await invoke('git-is-repo', cwd);
     if (!isRepo) {
       state.gitBranch = null;
       state.gitStatus = null;
     } else {
-      state.gitBranch = await ipcRenderer.invoke('git-branch', cwd);
-      state.gitStatus = await ipcRenderer.invoke('git-status', cwd);
+      state.gitBranch = await invoke('git-branch', cwd);
+      state.gitStatus = await invoke('git-status', cwd);
     }
   } catch {
     state.gitBranch = null;

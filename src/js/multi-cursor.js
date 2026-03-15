@@ -17,7 +17,6 @@ export function init() {
       const rect = editorEl.getBoundingClientRect();
       // Approximate char position from click - simplified
       const text = editor.getActiveContent();
-      const lines = text.split('\n');
       const lineHeight = 25.6;
       const charWidth = 8.5;
       const scrollTop = editorEl.scrollTop;
@@ -26,15 +25,26 @@ export function init() {
       const x = e.clientX - rect.left + scrollLeft;
       const lineIdx = Math.floor(y / lineHeight);
       const colIdx = Math.floor(x / charWidth);
-      if (lineIdx >= 0 && lineIdx < lines.length) {
-        const line = lines[lineIdx];
-        const pos = Math.min(colIdx, line.length);
+
+      if (lineIdx >= 0) {
         let idx = 0;
-        for (let i = 0; i < lineIdx; i++) idx += lines[i].length + 1;
-        idx += pos;
-        cursors.push(idx);
-        editorEl.setSelectionRange(idx, idx);
-        lastAddTime = Date.now();
+        let currentLine = 0;
+        while (currentLine < lineIdx) {
+          const nextNewline = text.indexOf('\n', idx);
+          if (nextNewline === -1) break;
+          idx = nextNewline + 1;
+          currentLine++;
+        }
+
+        if (currentLine === lineIdx && idx <= text.length) {
+          const nextNewline = text.indexOf('\n', idx);
+          const lineLength = (nextNewline === -1 ? text.length : nextNewline) - idx;
+          const pos = Math.min(colIdx, lineLength);
+          idx += pos;
+          cursors.push(idx);
+          editorEl.setSelectionRange(idx, idx);
+          lastAddTime = Date.now();
+        }
       }
     }
   });
