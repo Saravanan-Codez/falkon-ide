@@ -28,6 +28,12 @@
     box-sizing: border-box;
 }
 
+/* Global Focus Outline */
+*:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
 body {
     font-family: var(--font-ui);
     background-color: var(--background);
@@ -336,6 +342,13 @@ body {
     background: var(--primary-dim);
 }
 
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-small:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .btn-primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -408,6 +421,11 @@ body {
 .search-input:focus {
     outline: none;
     border-color: var(--primary);
+}
+
+.search-input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -1px;
 }
 
 .search-count {
@@ -507,6 +525,13 @@ body {
 #run-entry-select:focus {
     outline: none;
     border-color: var(--primary);
+}
+
+.run-args-input:focus-visible,
+.run-cwd-input:focus-visible,
+#run-entry-select:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -1px;
 }
 
 .run-footer {
@@ -947,6 +972,11 @@ body {
     border-color: var(--primary);
 }
 
+.find-input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -1px;
+}
+
 .find-widget-count {
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -1289,6 +1319,11 @@ body {
 .terminal-input:focus {
     outline: none;
     border-color: var(--primary);
+}
+
+.terminal-input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -1px;
 }
 
 .terminal-input-hint {
