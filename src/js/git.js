@@ -2,14 +2,9 @@
  * Git / Source Control integration
  */
 import { state } from './state.js';
+import { escapeHtml } from './utils.js';
 
 const { ipcRenderer } = require('electron');
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 async function openSourceFile(filePath) {
   try {

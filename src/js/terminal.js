@@ -3,6 +3,7 @@
  */
 import * as fileExplorer from './file-explorer.js';
 import * as workspace from './workspace.js';
+import { escapeHtml } from './utils.js';
 
 const { ipcRenderer } = require('electron');
 
@@ -34,11 +35,6 @@ function getDefaultCwd() {
   return workspace.getWorkspacePath() || process.cwd?.() || '.';
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 function setOutput(text) {
   if (!terminalOutput) return;

@@ -1,6 +1,8 @@
 /**
  * Cimple syntax highlighter (Python-like)
  */
+import { escapeHtml } from './utils.js';
+
 const CIMPLE_KEYWORDS = new Set([
   'def', 'class', 'if', 'elif', 'else', 'for', 'while', 'in', 'return', 'yield',
   'break', 'continue', 'pass', 'raise', 'try', 'except', 'finally', 'with', 'as',
@@ -15,12 +17,6 @@ const CIMPLE_BUILTINS = new Set([
   'super', 'property', 'staticmethod', 'classmethod', 'getattr', 'setattr', 'hasattr',
   'any', 'all', 'dir', 'vars', 'id', 'hash'
 ]);
-
-export function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 export function highlightCimple(source) {
   if (!source) return '';
