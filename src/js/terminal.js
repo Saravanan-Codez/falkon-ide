@@ -3,7 +3,7 @@
  */
 import * as fileExplorer from './file-explorer.js';
 import * as workspace from './workspace.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, generateId } from './utils.js';
 
 const { invoke, on, process } = window.electronAPI;
 
@@ -143,7 +143,7 @@ async function spawnSession(session) {
 }
 
 function createSession(options = {}) {
-  const id = 'term-' + Date.now();
+  const id = generateId('term');
   const cwd = options.cwd || getDefaultCwd();
   const session = {
     id,

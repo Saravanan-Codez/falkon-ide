@@ -4,6 +4,7 @@
 import { state } from './state.js';
 import * as editor from './editor.js';
 import * as fileExplorer from './file-explorer.js';
+import * as workspaceModule from './workspace.js';
 import { escapeHtml } from './utils.js';
 
 const { path } = window.electronAPI;
@@ -12,7 +13,7 @@ const breadcrumbsEl = document.getElementById('breadcrumbs');
 export function update() {
   if (!breadcrumbsEl) return;
   const tab = editor.getActiveTab();
-  const workspace = fileExplorer.getWorkspacePath();
+  const workspace = workspaceModule.getWorkspacePath();
   if (!tab?.path || !workspace) {
     breadcrumbsEl.innerHTML = `<span class="breadcrumb-item">${escapeHtml(tab?.title || 'Untitled')}</span>`;
     return;

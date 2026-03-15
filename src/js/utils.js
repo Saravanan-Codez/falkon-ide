@@ -25,3 +25,17 @@ export function throttle(fn, ms) {
     }
   };
 }
+
+export function safeParse(value, fallback = null) {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed !== null ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function generateId(prefix = '') {
+  return (prefix ? prefix + '-' : '') + Date.now();
+}

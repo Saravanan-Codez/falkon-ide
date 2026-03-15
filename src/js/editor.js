@@ -3,8 +3,10 @@
  */
 import { state } from './state.js';
 import { highlightCimple } from './syntax.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, generateId } from './utils.js';
 import * as fileExplorer from './file-explorer.js';
+
+const { ipcRenderer } = require('electron');
 
 const editorEl = document.getElementById('code-editor');
 const lineNumbersEl = document.getElementById('line-numbers');
@@ -147,7 +149,7 @@ export function closeTab(id) {
 
 export function addTab(title = null, options = {}) {
   tabFromEditor();
-  const id = options.id || 'tab-' + Date.now();
+  const id = options.id || generateId('tab');
   const title_ = title || `Untitled-${state.tabs.length + 1}`;
   state.tabs.push({
     id,
