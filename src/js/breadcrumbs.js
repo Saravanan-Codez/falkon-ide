@@ -6,7 +6,7 @@ import * as editor from './editor.js';
 import * as fileExplorer from './file-explorer.js';
 import { escapeHtml } from './utils.js';
 
-const path = require('path');
+const { path } = window.electronAPI;
 const breadcrumbsEl = document.getElementById('breadcrumbs');
 
 export function update() {
