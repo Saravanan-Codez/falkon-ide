@@ -1,6 +1,6 @@
-import test from 'node:test';
+import test, { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { escapeHtml } from '../src/js/utils.js';
+import { escapeHtml, debounce, throttle } from '../src/js/utils.js';
 
 // Mock DOM environment to match real browser behavior
 global.document = {
@@ -53,4 +53,68 @@ test('escapeHtml behavior for quotes (DOM-based)', () => {
   // Verifying current DOM behavior: quotes are NOT escaped in innerHTML of a div
   assert.strictEqual(escapeHtml('"'), '"');
   assert.strictEqual(escapeHtml("'"), "'");
+});
+
+describe('debounce', () => {
+  it('should delay execution', (t, done) => {
+    let called = 0;
+    const fn = debounce(() => { called++; }, 50);
+
+    fn();
+    assert.strictEqual(called, 0);
+
+    setTimeout(() => {
+      assert.strictEqual(called, 1);
+      done();
+    }, 100);
+  });
+
+  it('should reset delay if called again', (t, done) => {
+    let called = 0;
+    const fn = debounce(() => { called++; }, 50);
+
+    fn();
+    setTimeout(() => fn(), 30);
+
+    setTimeout(() => {
+      assert.strictEqual(called, 0); // Not called yet because of reset
+    }, 60);
+
+    setTimeout(() => {
+      assert.strictEqual(called, 1);
+      done();
+    }, 100);
+  });
+});
+
+describe('throttle', () => {
+  it('should execute immediately on first call', () => {
+    let called = 0;
+    const fn = throttle(() => { called++; }, 50);
+
+    fn();
+    assert.strictEqual(called, 1);
+  });
+
+  it('should not execute again within the wait period', () => {
+    let called = 0;
+    const fn = throttle(() => { called++; }, 50);
+
+    fn();
+    fn();
+    fn();
+    assert.strictEqual(called, 1);
+  });
+
+  it('should execute again after wait period', (t, done) => {
+    let called = 0;
+    const fn = throttle(() => { called++; }, 50);
+
+    fn();
+    setTimeout(() => {
+      fn();
+      assert.strictEqual(called, 2);
+      done();
+    }, 60);
+  });
 });
