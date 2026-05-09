@@ -15,6 +15,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
       preload: path.join(__dirname, 'preload.js')
     },
     titleBarStyle: 'hiddenInset'
@@ -22,6 +23,22 @@ function createWindow() {
 
   Menu.setApplicationMenu(null);
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+  if (process.env.CIMPLE_DEVTOOLS === '1') {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
+
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    console.error('[preload-error]', preloadPath, error);
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error('[did-fail-load]', errorCode, errorDescription, validatedURL);
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[render-process-gone]', details);
+  });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
@@ -42,12 +59,54 @@ ipcMain.handle('open-folder', async () => {
   return result.canceled ? null : result.filePaths[0];
 });
 
+ipcMain.handle('create-folder', async (_event, options = {}) => {
+  const defaultPath = typeof options.defaultPath === 'string' ? options.defaultPath : undefined;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    defaultPath,
+    properties: ['openDirectory', 'createDirectory']
+  });
+  return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('show-open-recent', async (_event, recents) => {
+  const list = Array.isArray(recents) ? recents.filter(Boolean) : [];
+  if (!list.length) return null;
+  const buttons = [...list, 'Cancel'];
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    title: 'Open Recent',
+    message: 'Choose a recent folder',
+    buttons,
+    defaultId: 0,
+    cancelId: buttons.length - 1,
+    noLink: true
+  });
+  if (result.response === buttons.length - 1) return null;
+  return list[result.response] || null;
+});
+
 ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
     filters: [{ name: 'Cimple', extensions: ['cimple', 'cpl', 'py'] }, { name: 'All Files', extensions: ['*'] }]
   });
   return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle('create-file', async (_event, options = {}) => {
+  const defaultPath = typeof options.defaultPath === 'string' ? options.defaultPath : undefined;
+  const content = typeof options.content === 'string' ? options.content : '';
+  let filePath = typeof options.filePath === 'string' ? options.filePath : null;
+  if (!filePath) {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath,
+      filters: [{ name: 'Cimple', extensions: ['cimple', 'cpl', 'py'] }, { name: 'All Files', extensions: ['*'] }]
+    });
+    if (result.canceled) return null;
+    filePath = result.filePath;
+  }
+  await fs.writeFile(filePath, content, 'utf8');
+  return filePath;
 });
 
 ipcMain.handle('save-file', async (_, filePath, content) => {
@@ -239,3 +298,5 @@ app.on('window-all-closed', () => {
   terminalProcesses.clear();
   if (process.platform !== 'darwin') app.quit();
 });
+
+

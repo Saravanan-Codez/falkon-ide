@@ -3,9 +3,9 @@
  */
 import { state } from './state.js';
 import * as editor from './editor.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, path } from './utils.js';
 
-const { invoke, path } = window.electronAPI;
+const { invoke } = window.electronAPI;
 
 let fileTreeCache = {};
 
@@ -74,6 +74,11 @@ export async function openFolder() {
 
 export async function openFile(filePath) {
   try {
+    await editor.whenReady();
+    if (!filePath) {
+      filePath = await invoke('open-file');
+    }
+    if (!filePath) return;
     const content = await invoke('read-file', filePath);
     const name = filePath.split(/[/\\]/).pop();
     editor.openTab({ id: 'file-' + filePath, title: name, path: filePath, content, dirty: false });
@@ -107,6 +112,32 @@ export async function saveFileAs(tab) {
   return filePath;
 }
 
+export async function createFile() {
+  await editor.whenReady();
+  const content = '';
+  const filePath = await invoke('create-file', { defaultPath: state.workspacePath || undefined, content });
+  if (filePath) {
+    if (!state.workspacePath) {
+      const workspaceModule = await import('./workspace.js');
+      await workspaceModule.setWorkspacePath(path.dirname(filePath));
+      await refreshFolder();
+    }
+    await openFile(filePath);
+    editor.focusEditor();
+  }
+}
+
+export async function createFolder() {
+  const folderPath = await invoke('create-folder', { defaultPath: state.workspacePath || undefined });
+  if (folderPath) {
+    const workspaceModule = await import('./workspace.js');
+    if (!state.workspacePath) {
+      await workspaceModule.setWorkspacePath(folderPath);
+    }
+    await refreshFolder();
+  }
+}
+
 
 export async function refreshFolder() {
   const path = state.workspacePath;
@@ -122,3 +153,20 @@ export async function refreshFolder() {
   const workspaceModule = await import('./workspace.js');
   await workspaceModule.refreshGit();
 }
+
+export async function openRecent() {
+  await editor.whenReady();
+  const workspaceModule = await import('./workspace.js');
+  const recents = workspaceModule.getRecentWorkspaces();
+  if (!recents.length) {
+    await openFolder();
+    return;
+  }
+  const choice = recents.length === 1
+    ? recents[0]
+    : await invoke('show-open-recent', recents);
+  if (!choice) return;
+  await workspaceModule.setWorkspacePath(choice);
+  await refreshFolder();
+}
+

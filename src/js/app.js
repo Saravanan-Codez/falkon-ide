@@ -11,14 +11,10 @@ import * as terminal from './terminal.js';
 import * as run from './run.js';
 import * as themes from './themes.js';
 import * as zenMode from './zen-mode.js';
-import * as minimap from './minimap.js';
 import * as breadcrumbs from './breadcrumbs.js';
-import * as autocomplete from './autocomplete.js';
 import * as autosave from './autosave.js';
-import * as multiCursor from './multi-cursor.js';
 import * as workspace from './workspace.js';
 
-const editorEl = document.getElementById('code-editor');
 const contextMenu = document.getElementById('context-menu');
 const workspacePathEl = document.getElementById('workspace-path');
 const workspaceBranchEl = document.getElementById('workspace-branch');
@@ -36,12 +32,25 @@ state.activeTabId = null;
 // Init modules
 panels.init();
 terminal.init();
-minimap.init();
-multiCursor.init();
 run.init();
 workspace.onWorkspaceChange(() => {
   updateWorkspaceHeader();
 });
+
+if (window.monacoReady) {
+  window.monacoReady.then((monaco) => {
+    editor.initMonaco(monaco);
+    editor.renderTabs();
+    editor.editorFromTab();
+    breadcrumbs.update();
+    editor.onDidChangeContent(() => {
+      autosave.onContentChange();
+      breadcrumbs.update();
+    });
+  }).catch((err) => {
+    console.error('Monaco failed to load', err);
+  });
+}
 
 function updateWorkspaceHeader() {
   const path = state.workspacePath;
@@ -71,55 +80,9 @@ workspaceRevealBtn?.addEventListener('click', () => {
   fileExplorer.refreshFolder();
 });
 document.getElementById('source-refresh-btn')?.addEventListener('click', () => workspace.refreshGit());
-// Editor input handler
-if (editorEl) {
-  editorEl.addEventListener('input', () => {
-    editor.setActiveContent(editorEl.value);
-    autosave.onContentChange();
-    minimap.update();
-  });
-  editorEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = editorEl.selectionStart;
-      const end = editorEl.selectionEnd;
-      const value = editor.getActiveContent();
-      if (e.shiftKey) {
-        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-        const line = value.slice(lineStart, end);
-        const indent = (line.match(/^(\s*)/) || ['', ''])[1];
-        if (indent.length >= 4) {
-          const newContent = value.slice(0, lineStart) + indent.slice(4) + value.slice(lineStart + 4);
-          editor.setActiveContent(newContent);
-          editorEl.value = newContent;
-          editorEl.setSelectionRange(Math.max(lineStart, start - 4), end - 4);
-        }
-      } else {
-        const inserted = '    ';
-        const newContent = value.slice(0, start) + inserted + value.slice(end);
-        editor.setActiveContent(newContent);
-        editorEl.value = newContent;
-        editorEl.selectionStart = editorEl.selectionEnd = start + inserted.length;
-      }
-      editor.updateLineNumbers();
-      editor.updateHighlight();
-      return;
-    }
-    if (e.ctrlKey && e.key === 'f') { e.preventDefault(); find.showFindWidget(); return; }
-    if (e.key === 'Escape') { find.hideFindWidget(); autocomplete.hide(); return; }
-    // Auto-complete trigger on .
-    if (e.key === '.' || (e.key.length === 1 && /[a-zA-Z]/.test(e.key))) {
-      setTimeout(() => autocomplete.show(), 100);
-    }
-  });
-  editorEl.addEventListener('mouseup', editor.updateCursorInfo);
-  editorEl.addEventListener('keyup', (e) => {
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-      editor.updateCursorInfo();
-      breadcrumbs.update();
-    }
-  });
-}
+document.getElementById('new-file-btn')?.addEventListener('click', () => fileExplorer.createFile());
+document.getElementById('new-folder-btn')?.addEventListener('click', () => fileExplorer.createFolder());
+document.getElementById('refresh-btn')?.addEventListener('click', () => fileExplorer.refreshFolder());
 
 // Global shortcuts
 function cycleEditorTabs(direction = 1) {
@@ -133,6 +96,12 @@ function cycleEditorTabs(direction = 1) {
 
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key === 'P') { e.preventDefault(); commandPalette.show(); return; }
+  if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+    e.preventDefault();
+    document.querySelector('.activity-item[data-view="search"]')?.click();
+    document.getElementById('find-input')?.focus();
+    return;
+  }
   if (e.ctrlKey && e.key === 'K' && e.key === 'Z') { e.preventDefault(); zenMode.toggle(); return; }
   if (e.ctrlKey && e.key === 'K') return; // K chord
   if (e.ctrlKey && e.key === 'Tab') {
@@ -154,7 +123,7 @@ document.addEventListener('keydown', (e) => {
     })(); return;
   }
   if (e.ctrlKey && e.key === 'n') { e.preventDefault(); editor.addTab(); return; }
-  if (e.ctrlKey && e.key === 'f' && document.activeElement !== editorEl) { e.preventDefault(); document.querySelector('.activity-item[data-view="search"]')?.click(); document.getElementById('find-input')?.focus(); return; }
+  if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); find.showFindWidget(); return; }
   if (e.ctrlKey && (e.key === '`' || e.key === 'Backquote')) { e.preventDefault(); const panel = document.getElementById('bottom-panel'); if (panel) { state.panelVisible = !panel.classList.contains('hidden'); panel.classList.toggle('hidden', !state.panelVisible); } return; }
 });
 
@@ -174,30 +143,8 @@ document.addEventListener('keydown', (e) => {
 });
 document.addEventListener('keyup', (e) => { if (!e.ctrlKey) kChord = false; });
 
-// Context menu
-if (editorEl) {
-  editorEl.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    if (contextMenu) {
-      contextMenu.classList.add('visible');
-      contextMenu.style.left = e.clientX + 'px';
-      contextMenu.style.top = e.clientY + 'px';
-    }
-  });
-}
+// Context menu is handled by Monaco
 document.addEventListener('click', () => contextMenu?.classList.remove('visible'));
-contextMenu?.querySelectorAll('.context-item').forEach(item => {
-  item.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const action = item.dataset.action;
-    editorEl?.focus();
-    if (action === 'cut') document.execCommand('cut');
-    if (action === 'copy') document.execCommand('copy');
-    if (action === 'paste') document.execCommand('paste');
-    if (action === 'selectAll') { editorEl.setSelectionRange(0, editorEl.value.length); editor.updateCursorInfo(); }
-    contextMenu?.classList.remove('visible');
-  });
-});
 
 // Find widget buttons
 document.getElementById('editor-find-input')?.addEventListener('input', () => find.findInEditor(true, false));
@@ -259,13 +206,14 @@ document.getElementById('replace-prev')?.addEventListener('click', () => {
   const regex = find.getFindRegexSidebar();
   if (!regex) return;
   const text = editor.getActiveContent();
-  const cursor = editorEl?.selectionStart ?? 0;
+  const selection = editor.getSelectionOffsets();
+  const cursor = selection.start ?? 0;
   const before = text.slice(0, cursor);
   const matches = [...before.matchAll(new RegExp(regex.source, regex.flags))];
   const last = matches[matches.length - 1];
   if (last) {
-    editorEl.setSelectionRange(last.index, last.index + last[0].length);
-    editorEl.focus();
+    editor.setSelectionOffsets(last.index, last.index + last[0].length);
+    editor.focusEditor();
     editor.updateCursorInfo();
   }
 });
@@ -278,7 +226,6 @@ document.getElementById('replace-all')?.addEventListener('click', () => {
   const text = editor.getActiveContent();
   const newText = text.replace(regex, replaceValue);
   editor.setActiveContent(newText);
-  if (editorEl) editorEl.value = newText;
   document.getElementById('find-count').textContent = '0';
 });
 
@@ -291,9 +238,9 @@ document.querySelector('.panel-tab[data-tab="terminal"]')?.addEventListener('cli
 document.addEventListener('tab-switched', () => breadcrumbs.update());
 
 // Initial render
-editor.renderTabs();
-editor.editorFromTab();
-breadcrumbs.update();
-minimap.update();
 editor.refreshGitStatus();
 workspace.notify('bootstrap');
+
+
+
+

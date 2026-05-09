@@ -3,8 +3,6 @@
  */
 import { state } from './state.js';
 import * as editor from './editor.js';
-
-const editorEl = document.getElementById('code-editor');
 const findWidget = document.getElementById('find-widget');
 
 function getFindRegex(useSidebar) {
@@ -48,10 +46,11 @@ export function findInEditor(forward = true, useSidebar = false) {
     if (matches.length > 5000) break;
   }
   state.findMatches = matches;
-  const cursor = editorEl?.selectionEnd ?? 0;
+  const selection = editor.getSelectionOffsets();
+  const cursor = selection.end ?? 0;
   let idx = forward
-    ? matches.findIndex(m => m.start >= (editorEl?.selectionEnd ?? cursor))
-    : [...matches].reverse().findIndex(m => m.end <= (editorEl?.selectionStart ?? cursor));
+    ? matches.findIndex(m => m.start >= (selection.end ?? cursor))
+    : [...matches].reverse().findIndex(m => m.end <= (selection.start ?? cursor));
   if (forward && idx === -1) idx = 0;
   if (!forward && idx === -1) idx = matches.length - 1;
   if (!forward && matches.length) idx = matches.length - 1 - idx;
@@ -60,8 +59,8 @@ export function findInEditor(forward = true, useSidebar = false) {
   if (countEl) countEl.textContent = matches.length ? `${state.currentFindIndex + 1}/${matches.length}` : '0/0';
   if (matches.length && state.currentFindIndex >= 0) {
     const { start, end } = matches[state.currentFindIndex];
-    editorEl?.focus();
-    editorEl?.setSelectionRange(start, end);
+    editor.focusEditor();
+    editor.setSelectionOffsets(start, end);
     editor.updateCursorInfo();
   }
 }
@@ -78,14 +77,12 @@ export function replaceInEditor(oneOnly, useSidebar = false) {
     const { start, end } = state.findMatches[state.currentFindIndex];
     const newText = text.slice(0, start) + replaceValue + text.slice(end);
     editor.setActiveContent(newText);
-    if (editorEl) editorEl.value = newText;
-    editorEl?.setSelectionRange(start, start + replaceValue.length);
+    editor.setSelectionOffsets(start, start + replaceValue.length);
     findInEditor(true, useSidebar);
     return;
   }
   const newText = text.replace(regex, replaceValue);
   editor.setActiveContent(newText);
-  if (editorEl) editorEl.value = newText;
   const countEl = document.getElementById('editor-find-count');
   if (countEl) countEl.textContent = '0/0';
   state.findMatches = [];
@@ -101,7 +98,7 @@ export function showFindWidget() {
 
 export function hideFindWidget() {
   if (findWidget) findWidget.classList.remove('visible');
-  editorEl?.focus();
+  editor.focusEditor();
 }
 
 export function getFindRegexSidebar() {

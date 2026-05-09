@@ -16,7 +16,9 @@ export function toggle() {
     footer?.classList.add('hidden');
     panel?.classList.add('hidden');
     resizer?.classList.add('hidden');
-  } else {
+  }
+  else {
+    activityBar?.classList.remove('hidden');
     activityBar?.classList.remove('hidden');
     sidebar?.classList.remove('hidden');
     footer?.classList.remove('hidden');

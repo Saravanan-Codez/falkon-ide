@@ -5,11 +5,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
+    content="default-src 'self' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-eval'; worker-src 'self' blob: data:">
   <title>Cimple Dev Kit | Code Editor</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="../node_modules/monaco-editor/min/vs/editor/editor.main.css">
   <link
-    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
     rel="stylesheet">
 </head>
 
@@ -211,13 +212,7 @@
         </div>
 
         <div class="editor-container" id="editor-container" style="display: none;">
-          <div class="line-numbers" id="line-numbers">1</div>
-          <div class="editor-content">
-            <div class="highlight-layer" id="highlight-layer" aria-hidden="true"></div>
-            <textarea id="code-editor" spellcheck="false" placeholder="Start typing your Cimple code..."
-              autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
-          </div>
-          <div class="minimap" id="minimap"></div>
+          <div id="monaco-editor" class="monaco-editor"></div>
         </div>
       </div>
 
@@ -295,6 +290,8 @@
     <div class="context-item" data-action="selectAll"><span>Select All</span><span class="shortcut">Ctrl+A</span></div>
   </div>
 
+  <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
+  <script src="js/monaco-loader.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 

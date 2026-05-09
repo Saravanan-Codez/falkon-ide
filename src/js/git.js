@@ -4,20 +4,6 @@
 import { state } from './state.js';
 import { escapeHtml } from './utils.js';
 
-const { ipcRenderer } = require('electron');
-
-function escapeHtml(text) {
-  return text.replace(/[&<>"']/g, function(m) {
-    switch (m) {
-      case '&': return '&amp;';
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '"': return '&quot;';
-      case "'": return '&#039;';
-      default: return m;
-    }
-  });
-}
 const { invoke } = window.electronAPI;
 
 async function openSourceFile(filePath) {
@@ -101,3 +87,4 @@ export async function refreshSourceList() {
     listEl.innerHTML = '<p class="source-hint">Error reading Git status.</p>';
   }
 }
+

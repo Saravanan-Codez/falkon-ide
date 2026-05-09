@@ -8,11 +8,10 @@ import { escapeHtml, generateId } from './utils.js';
 const { invoke, on, process } = window.electronAPI;
 
 const DEFAULT_SHELL = process.platform === 'win32'
-  ? (process.env.POWERSHELL || process.env.COMSPEC || 'powershell.exe')
+  ? (process.env.POWERSHELL || 'powershell.exe')
   : (process.env.SHELL || 'bash');
 const isPowerShell = /powershell|pwsh/i.test(DEFAULT_SHELL);
-const isCmd = /cmd\.exe$/i.test(DEFAULT_SHELL);
-const SHELL_ARGS = isPowerShell ? ['-NoLogo', '-NoExit'] : (isCmd ? ['/K'] : []);
+const SHELL_ARGS = isPowerShell ? ['-NoLogo', '-NoExit', '-NoProfile'] : [];
 const SHELL_DISPLAY = DEFAULT_SHELL.split(/[\\/]/).pop() || DEFAULT_SHELL;
 
 const MAX_OUTPUT = 50000;
@@ -283,4 +282,15 @@ export function init() {
   terminalNewBtn?.addEventListener('click', () => createSession());
 
   // events already wired above
+}
+
+export function spawnTerminal(options = {}) {
+  if (!sessions.size) {
+    createSession(options);
+    return;
+  }
+  if (!activeSessionId) {
+    activeSessionId = Array.from(sessions.keys())[0] || null;
+  }
+  if (activeSessionId) selectSession(activeSessionId);
 }

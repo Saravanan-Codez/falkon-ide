@@ -1,9 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const path = require('path');
+const platform = typeof process !== 'undefined' ? process.platform : '';
+const env = (typeof process !== 'undefined' && process.env) ? {
+  SHELL: process.env.SHELL,
+  POWERSHELL: process.env.POWERSHELL,
+  COMSPEC: process.env.COMSPEC
+} : {};
 
 const ALLOWED_INVOKE_CHANNELS = [
   'open-folder', 'open-file', 'save-file', 'read-file', 'read-dir',
   'write-file', 'file-exists', 'create-temp-file', 'delete-file',
+  'show-open-recent', 'create-file', 'create-folder',
   'terminal-spawn', 'terminal-write', 'terminal-kill', 'terminal-sigint',
   'git-branch', 'git-status', 'git-is-repo', 'run-cimple'
 ];
@@ -26,29 +32,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener(channel, subscription);
     }
   },
-  path: {
-    join: (...args) => path.join(...args),
-    dirname: (p) => path.dirname(p),
-    relative: (from, to) => path.relative(from, to),
-    extname: (p) => path.extname(p)
-  },
   process: {
-    platform: process.platform,
-    env: {
-      SHELL: process.env.SHELL,
-      POWERSHELL: process.env.POWERSHELL,
-      COMSPEC: process.env.COMSPEC
-    }
+    platform,
+    env
   }
 });
 
 window.addEventListener('DOMContentLoaded', () => {
+    const versions = typeof process !== 'undefined' ? process.versions : {};
     const replaceText = (selector, text) => {
         const element = document.getElementById(selector)
         if (element) element.innerText = text
     }
 
     for (const type of ['chrome', 'node', 'electron']) {
-        replaceText(`${type}-version`, process.versions[type])
+        replaceText(`${type}-version`, versions[type] || '')
     }
 })
+
+
+
+
+
+
+

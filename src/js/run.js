@@ -4,9 +4,9 @@
 import { state } from './state.js';
 import * as editor from './editor.js';
 import * as workspace from './workspace.js';
-import { safeParse } from './utils.js';
+import { safeParse, path } from './utils.js';
 
-const { invoke, on, path } = window.electronAPI;
+const { invoke, on } = window.electronAPI;
 
 const STORAGE_CONFIG = 'cimple.runConfig';
 const STORAGE_HISTORY = 'cimple.runHistory';
@@ -283,3 +283,4 @@ export function init() {
     }
   });
 }
+

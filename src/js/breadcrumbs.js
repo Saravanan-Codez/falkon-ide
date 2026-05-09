@@ -5,9 +5,7 @@ import { state } from './state.js';
 import * as editor from './editor.js';
 import * as fileExplorer from './file-explorer.js';
 import * as workspaceModule from './workspace.js';
-import { escapeHtml } from './utils.js';
-
-const { path } = window.electronAPI;
+import { escapeHtml, path } from './utils.js';
 const breadcrumbsEl = document.getElementById('breadcrumbs');
 
 export function update() {
@@ -33,3 +31,5 @@ export function update() {
     });
   });
 }
+
+

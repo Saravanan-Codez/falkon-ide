@@ -18,19 +18,6 @@ const CIMPLE_BUILTINS = new Set([
   'any', 'all', 'dir', 'vars', 'id', 'hash'
 ]);
 
-export function escapeHtml(text) {
-  return text.replace(/[&<>"']/g, function(m) {
-    switch (m) {
-      case '&': return '&amp;';
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '"': return '&quot;';
-      case "'": return '&#039;';
-      default: return m;
-    }
-  });
-}
-
 export function highlightCimple(source) {
   if (!source) return '';
   return source.split('\n').map(highlightLine).join('\n');
