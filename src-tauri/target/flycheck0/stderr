@@ -1,0 +1,10 @@
+    Updating crates.io index
+error: failed to select a version for `tauri`.
+    ... required by package `cimple_dev_kit_tauri v0.1.0 (D:\Cimple_Industries\Cimple\Cimple_Dev_kit\src-tauri)`
+versions that meet the requirements `^2.0` are: 2.11.1, 2.11.0, 2.10.3, 2.10.2, 2.10.1, 2.10.0, 2.9.5, 2.9.4, 2.9.3, 2.9.2, 2.9.1, 2.9.0, 2.8.5, 2.8.4, 2.8.3, 2.8.2, 2.8.1, 2.8.0, 2.7.0, 2.6.2, 2.6.1, 2.6.0, 2.5.1, 2.5.0, 2.4.1, 2.4.0, 2.3.1, 2.3.0, 2.2.5, 2.2.4, 2.2.3, 2.2.2, 2.2.1, 2.2.0, 2.1.1, 2.1.0, 2.0.6, 2.0.5, 2.0.4, 2.0.3, 2.0.2, 2.0.1, 2.0.0
+
+package `cimple_dev_kit_tauri` depends on `tauri` with feature `api-all` but `tauri` does not have that feature.
+ available features: common-controls-v6, compression, config-json5, config-toml, custom-protocol, data-url, default, devtools, http-range, image, image-ico, image-png, isolation, linux-libxdo, macos-private-api, macos-proxy, native-tls, native-tls-vendored, objc-exception, process-relaunch-dangerous-allow-symlink-macos, protocol-asset, rustls-tls, specta, tauri-runtime-wry, test, tracing, tray-icon, unstable, uuid, webview-data-url, wry
+
+
+failed to select a version for `tauri` which could resolve this conflict

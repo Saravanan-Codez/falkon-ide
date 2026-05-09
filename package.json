@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "main": "src/main.js",
   "scripts": {
-    "start": "node scripts/start-electron.js",
+    "start": "npx -y @tauri-apps/cli@2.6.1 dev",
+    "tauri": "npx -y @tauri-apps/cli@2.6.1",
+    "build": "npx -y @tauri-apps/cli@2.6.1 build",
     "test": "node --test tests/*.test.js"
   },
   "devDependencies": {
-    "electron": "^41.0.2"
+    "electron": "^41.0.2",
+    "@tauri-apps/cli": "^2.6.1"
   },
   "dependencies": {
-    "monaco-editor": "^0.53.0"
+    "monaco-editor": "^0.53.0",
+    "@tauri-apps/api": "^2.0.0"
   }
 }

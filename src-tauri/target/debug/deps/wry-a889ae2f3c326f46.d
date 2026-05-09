@@ -1,0 +1,10 @@
+D:\Cimple_Industries\Cimple\Cimple_Dev_kit\src-tauri\target\debug\deps\wry-a889ae2f3c326f46.d: C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\lib.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\application.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\mod.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\web_context.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\webview2\mod.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\webview2\file_drop.rs
+
+D:\Cimple_Industries\Cimple\Cimple_Dev_kit\src-tauri\target\debug\deps\libwry-a889ae2f3c326f46.rmeta: C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\lib.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\application.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\mod.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\web_context.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\webview2\mod.rs C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\webview2\file_drop.rs
+
+C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\lib.rs:
+C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\application.rs:
+C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\mod.rs:
+C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\web_context.rs:
+C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\webview2\mod.rs:
+C:\Users\Admin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wry-0.24.12\src\webview\webview2\file_drop.rs:
