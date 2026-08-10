@@ -1,1 +1,0 @@
-{"rustc":8323788817864214825,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[561782849581144631,"build_script_build",false,1758432595883292824]],"local":[{"RerunIfChanged":{"output":"debug\\build\\html5ever-d4ac7928b926321d\\output","paths":["src/tree_builder/rules.rs"]}}],"rustflags":[],"config":0,"compile_kind":0}
