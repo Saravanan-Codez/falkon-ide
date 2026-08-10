@@ -1,0 +1,4 @@
+const AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING = "chat.agentSessions.scopedInputHistory";
+export {
+  AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING
+};

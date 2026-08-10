@@ -1,0 +1,100 @@
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __decorateClass = (decorators, target, key, kind) => {
+  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target;
+  for (var i = decorators.length - 1, decorator; i >= 0; i--)
+    if (decorator = decorators[i])
+      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
+  if (kind && result) __defProp(target, key, result);
+  return result;
+};
+var __decorateParam = (index, decorator) => (target, key) => decorator(target, key, index);
+import { localize } from "../../../../../../nls.js";
+import {
+  ToolDataSource,
+  ToolInvocationPresentation
+} from "../languageModelToolsService.js";
+import { IChatArtifactsService } from "../chatArtifactsService.js";
+import { MarkdownString } from "../../../../../../base/common/htmlContent.js";
+const SetArtifactRulesToolId = "setArtifactRules";
+const artifactGroupConfigSchema = {
+  type: "object",
+  properties: {
+    groupName: {
+      type: "string",
+      description: "Display name for the artifact group."
+    },
+    onlyShowGroup: {
+      type: "boolean",
+      description: "When true, show only the group header instead of individual items."
+    }
+  },
+  required: ["groupName"]
+};
+const inputSchema = {
+  type: "object",
+  properties: {
+    byMimeType: {
+      type: "object",
+      description: "Rules for extracting artifacts from tool results by MIME type. Maps MIME type patterns (e.g. 'image/*') to group configuration.",
+      additionalProperties: artifactGroupConfigSchema
+    },
+    byFilePath: {
+      type: "object",
+      description: "Rules for extracting artifacts from written files by file path glob pattern. Maps glob patterns (e.g. '**/*plan*.md') to group configuration.",
+      additionalProperties: artifactGroupConfigSchema
+    },
+    byMemoryFilePath: {
+      type: "object",
+      description: "Rules for extracting artifacts from memory tool writes by memory file path glob pattern. Maps glob patterns to group configuration.",
+      additionalProperties: artifactGroupConfigSchema
+    }
+  }
+};
+const SetArtifactRulesToolData = {
+  id: SetArtifactRulesToolId,
+  toolReferenceName: "artifactRules",
+  legacyToolReferenceFullNames: [],
+  displayName: localize("tool.setArtifactRules.displayName", "Set Artifact Rules"),
+  modelDescription: 'Override the artifact extraction rules for this session. Rules control which tool results, files, and memory writes are automatically surfaced as artifacts.\n\nProvide rules as MIME type patterns, file path globs, or memory file path globs, each mapped to a group configuration with a groupName and optional onlyShowGroup flag.\n\nExamples:\n- byMimeType: { "image/*": { "groupName": "Screenshots", "onlyShowGroup": true } }\n- byFilePath: { "**/*plan*.md": { "groupName": "Plans" } }\n- byMemoryFilePath: { "**/*plan*.md": { "groupName": "Plans" } }\n\nThis fully replaces any settings-based rules for the duration of this session.',
+  canBeReferencedInPrompt: true,
+  source: ToolDataSource.Internal,
+  inputSchema
+};
+let SetArtifactRulesTool = class {
+  constructor(_chatArtifactsService) {
+    this._chatArtifactsService = _chatArtifactsService;
+  }
+  async prepareToolInvocation(_context, _token) {
+    return {
+      pastTenseMessage: new MarkdownString(localize("tool.setArtifactRules.pastTense", "Updated artifact rules")),
+      presentation: ToolInvocationPresentation.Hidden
+    };
+  }
+  async invoke(invocation, _countTokens, _progress, _token) {
+    const args = invocation.parameters;
+    const chatSessionResource = invocation.context?.sessionResource;
+    if (!chatSessionResource) {
+      return {
+        content: [{ kind: "text", value: "Error: No session resource available" }]
+      };
+    }
+    const rules = {
+      byMimeType: args.byMimeType,
+      byFilePath: args.byFilePath,
+      byMemoryFilePath: args.byMemoryFilePath
+    };
+    this._chatArtifactsService.getArtifacts(chatSessionResource).setRuleOverrides(rules);
+    return {
+      content: [{ kind: "text", value: localize("tool.setArtifactRules.success", "Updated artifact rules") }]
+    };
+  }
+};
+SetArtifactRulesTool = __decorateClass([
+  __decorateParam(0, IChatArtifactsService)
+], SetArtifactRulesTool);
+export {
+  SetArtifactRulesTool,
+  SetArtifactRulesToolData,
+  SetArtifactRulesToolId
+};

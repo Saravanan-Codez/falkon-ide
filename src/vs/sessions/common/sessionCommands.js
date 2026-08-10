@@ -1,0 +1,14 @@
+const UNARCHIVE_SESSION_COMMAND_ID = "sessionsViewPane.unarchiveSession";
+const RENAME_SESSION_COMMAND_ID = "sessionsViewPane.renameSession";
+const CLOSE_CHAT_COMMAND_ID = "sessions.chatCompositeBar.closeChat";
+const OPEN_VSCODE_WINDOW_COMMAND_ID = "agents.openVSCodeWindow";
+const RETURN_TO_VSCODE_EDITOR_COMMAND_ID = "agents.returnToVSCodeEditor";
+const SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID = "agents.shouldShowReturnToVSCodeEditor";
+export {
+  CLOSE_CHAT_COMMAND_ID,
+  OPEN_VSCODE_WINDOW_COMMAND_ID,
+  RENAME_SESSION_COMMAND_ID,
+  RETURN_TO_VSCODE_EDITOR_COMMAND_ID,
+  SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID,
+  UNARCHIVE_SESSION_COMMAND_ID
+};

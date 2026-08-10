@@ -1,0 +1,53 @@
+import { localize } from "../../../../../nls.js";
+import { SPOTLIGHT_PRESENTATION_KIND } from "../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js";
+import { NEW_SESSION_ONBOARDING_SEEN_KEY } from "./newSessionTour.js";
+import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep } from "./newSessionViewTourShared.js";
+const NEW_SESSION_VIEW_V2_TOUR_ID = "sessions.onboarding.newSessionViewV2";
+const NEW_SESSION_VIEW_V2_EXPERIMENT = {
+  behaviorFlag: "onb.newSessionViewV2.show",
+  assignmentContextIdFlag: "onb.newSessionViewV2.id"
+};
+const WAIT_FOR_PICKER = { kind: "wait", timeoutMs: 5e3 };
+const newSessionViewV2Payload = {
+  steps: [
+    createNewSessionViewWorkspaceStep(),
+    {
+      id: "harnessPicker",
+      targetId: "sessions.newSession.harnessPicker",
+      title: localize("sessions.onboarding.newSessionViewV2.harness.title", "Choose a harness"),
+      description: localize("sessions.onboarding.newSessionViewV2.harness.description", "A harness is the agent runtime that plans, uses tools, and carries out your task. Choose one based on the capabilities your work needs."),
+      placement: "above",
+      missingTarget: WAIT_FOR_PICKER,
+      openTarget: false,
+      allowTargetInteraction: true
+    },
+    {
+      id: "modelPicker",
+      targetId: "sessions.newSession.modelPicker",
+      title: localize("sessions.onboarding.newSessionViewV2.model.title", "Choose a model"),
+      description: localize("sessions.onboarding.newSessionViewV2.model.description", "The model powers your agent's reasoning. Choose one based on the balance of speed and capability your task needs."),
+      placement: "below",
+      missingTarget: WAIT_FOR_PICKER,
+      openTarget: true,
+      allowTargetInteraction: true
+    }
+  ]
+};
+function createNewSessionViewV2Tour(signal) {
+  return {
+    id: NEW_SESSION_VIEW_V2_TOUR_ID,
+    seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
+    when: createNewSessionViewRecentTourWhen(),
+    trigger: { kind: "observable", signal },
+    priority: 110,
+    experiment: NEW_SESSION_VIEW_V2_EXPERIMENT,
+    presentation: {
+      kind: SPOTLIGHT_PRESENTATION_KIND,
+      payload: newSessionViewV2Payload
+    }
+  };
+}
+export {
+  NEW_SESSION_VIEW_V2_TOUR_ID,
+  createNewSessionViewV2Tour
+};

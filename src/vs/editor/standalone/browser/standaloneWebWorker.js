@@ -1,0 +1,45 @@
+import { EditorWorkerClient } from "../../browser/services/editorWorkerService.js";
+function createWebWorker(modelService, webWorkerService, opts) {
+  return new MonacoWebWorkerImpl(modelService, webWorkerService, opts);
+}
+class MonacoWebWorkerImpl extends EditorWorkerClient {
+  constructor(modelService, webWorkerService, opts) {
+    super(opts.worker, opts.keepIdleModels || false, modelService, webWorkerService);
+    this._foreignModuleHost = opts.host || null;
+    this._foreignProxy = this._getProxy().then((proxy) => {
+      return new Proxy({}, {
+        get(target, prop, receiver) {
+          if (prop === "then") {
+            return void 0;
+          }
+          if (typeof prop !== "string") {
+            throw new Error(`Not supported`);
+          }
+          return (...args) => {
+            return proxy.$fmr(prop, args);
+          };
+        }
+      });
+    });
+  }
+  // foreign host request
+  fhr(method, args) {
+    if (!this._foreignModuleHost || typeof this._foreignModuleHost[method] !== "function") {
+      return Promise.reject(new Error("Missing method " + method + " or missing main thread foreign host."));
+    }
+    try {
+      return Promise.resolve(this._foreignModuleHost[method].apply(this._foreignModuleHost, args));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+  getProxy() {
+    return this._foreignProxy;
+  }
+  withSyncedResources(resources) {
+    return this.workerWithSyncedResources(resources).then((_) => this.getProxy());
+  }
+}
+export {
+  createWebWorker
+};

@@ -1,0 +1,32 @@
+import { localize2 } from "../../../../../nls.js";
+import { Action2, registerAction2 } from "../../../../../platform/actions/common/actions.js";
+import { IClipboardService } from "../../../../../platform/clipboard/common/clipboardService.js";
+import { ContextKeyExpr } from "../../../../../platform/contextkey/common/contextkey.js";
+import { ANY_AGENT_HOST_PROVIDER_RE } from "../../../../common/agentHostSessionsProvider.js";
+import { SessionProviderIdContext } from "../../../../common/contextkeys.js";
+import { SessionItemContextMenuId, SessionItemHasBranchNameContext } from "../../../sessions/browser/views/sessionsList.js";
+registerAction2(class CopySessionBranchNameAction extends Action2 {
+  constructor() {
+    super({
+      id: "sessionsViewPane.agentHost.copySessionBranchName",
+      title: localize2("copySessionBranchName", "Copy Session Branch Name"),
+      menu: [{
+        id: SessionItemContextMenuId,
+        group: "2_open",
+        order: 3,
+        when: ContextKeyExpr.and(
+          ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+          SessionItemHasBranchNameContext
+        )
+      }]
+    });
+  }
+  async run(accessor, context) {
+    const session = Array.isArray(context) ? context[0] : context;
+    const branchName = session?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim();
+    if (!branchName) {
+      return;
+    }
+    await accessor.get(IClipboardService).writeText(branchName);
+  }
+});
