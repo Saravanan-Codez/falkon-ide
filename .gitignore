@@ -1,42 +1,81 @@
-# Cloned repository
-vscode-falkon-dev-kit/
+# =============================================================================
+# Falkon Dev Kit — .gitignore
+# =============================================================================
+# VS Code upstream + Tauri desktop app build.
+# Rules follow the structure of the actual repo root.
+# =============================================================================
 
-# Dependencies
+# ---- Node / npm -------------------------------------------------------
 node_modules/
+.npm/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.yarn/
+.pnp.*
 
-# Tauri & Rust Build Outputs
+# ---- TypeScript / JS build outputs -----------------------------------
+# VS Code compiles everything into out/; we never commit compiled JS
+out/
+src/out/
+src/dist/
+dist/
+.build/
+*.js.map
+*.d.ts.map
+
+# VS Code source pairs: the upstream repo commits *.ts source files only.
+# Compiled *.js companions are not committed except for Falkon-specific patches below.
+
+# Falkon-patched compiled JS companions (these have .ts originals)
+src/vs/amdX.js
+src/vs/workbench/services/dialogs/browser/fileDialogService.js
+src/vs/code/browser/workbench/workbench.js
+src/vs/code/browser/workbench/workbench.css
+
+# ---- Tauri / Rust build outputs --------------------------------------
 src-tauri/target/
 src-tauri/gen/
 src-tauri/.cargo/
 target/
 *.rs.bk
+# Cargo.lock is intentionally tracked for reproducible Tauri builds.
 
-# Compiled JS & Distribution Bundles
+# ---- VS Code server / extension host sidecar outputs -----------------
+src/server/
+src/node_modules/
+# Note: out/ is a symlink to src/ created at build time — not committed.
+
+# ---- Bundle & release artifacts -------------------------------------
+# Output of bundle-vscode-tauri.js / build-vs.js
 src/dist/
-src/out/
-out/
-dist/
 release/
 build/node_modules/
 build/darwin/.dmgbuild
-
-# Binaries & Tooling Outputs
+*.vsix                   # Packaged extensions
+*.AppImage
+*.deb
+*.rpm
+*.msi
+*.dmg
 *.exe
 *.dll
 *.pdb
 *.dylib
 *.so
-*.dmg
-*.AppImage
-*.deb
-*.rpm
-*.msi
 
-# Temporary & OS Files
+# ---- Test outputs ----------------------------------------------------
+coverage/
+test_data/
+test-results/
+test-results.xml
+.playwright-cli/
+.playwright-mcp/
+.nyc_output/
+*.lcov
+
+# ---- Temporary, cache & OS files -------------------------------------
 .DS_Store
 .DS_Store?
 ._*
@@ -45,16 +84,33 @@ Thumbs.db
 .tmp/
 .cache/
 *.log
+*.tsbuildinfo
 
-# Test & Coverage Outputs
-coverage/
-test_data/
-test-results/
-test-results.xml
-.playwright-cli/
-.playwright-mcp/
-
-# Local Environment
+# ---- Local / secret environment files --------------------------------
 .env
 .env.*
 !.env.example
+.secrets/
+
+# ---- Editor / IDE directories ----------------------------------------
+.idea/
+*.swp
+*.swo
+*~
+
+# Note: .vscode/ is intentionally tracked (workspace settings for contributors).
+
+# ---- Falkon-specific generated / scratch files -----------------------
+# Master plan & scratch docs committed accidentally
+FALKON_DEV_KIT_MASTER_PLAN.md
+implementation_plan.md
+
+# CodeQL workflow duplicate at root (lives in .github/workflows instead)
+CodeQL.yml
+
+# ---- VS Code upstream artifacts that live in ignored directories ------
+# (Redundant with the above but explicit for clarity)
+extensions/node_modules/
+extensions/**/node_modules/
+remote/node_modules/
+cli/node_modules/
