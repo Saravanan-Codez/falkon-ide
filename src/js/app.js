@@ -3,6 +3,7 @@
  */
 import { state } from './state.js';
 import { registerFalkonLanguage } from './falkon-lang.js';
+import { initKeybindings } from './keybindings.js';
 import * as editor from './editor.js';
 import * as fileExplorer from './file-explorer.js';
 import * as panels from './panels.js';
@@ -31,6 +32,7 @@ state.activeTabId = null;
 // Initial content removed to show welcome screen
 
 // Init modules
+initKeybindings();
 panels.init();
 terminal.init();
 run.init();

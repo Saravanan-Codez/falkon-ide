@@ -7,7 +7,17 @@ import { escapeHtml, path } from './utils.js';
 
 const { invoke } = window.electronAPI;
 
-let fileTreeCache = {};
+function getFileIcon(name, isDirectory) {
+  if (isDirectory) return '📁';
+  if (name.endsWith('.falkon') || name.endsWith('.flk')) return '🦅';
+  if (name.endsWith('.rs')) return '🦀';
+  if (name.endsWith('.js') || name.endsWith('.ts')) return '📜';
+  if (name.endsWith('.json')) return '⚙️';
+  if (name.endsWith('.md')) return '📝';
+  if (name.endsWith('.html') || name.endsWith('.css')) return '🌐';
+  if (name.endsWith('.py')) return '🐍';
+  return '📄';
+}
 
 async function loadDir(dirPath, parentEl, depth = 0) {
   try {
@@ -22,7 +32,7 @@ async function loadDir(dirPath, parentEl, depth = 0) {
       item.className = 'tree-item' + (e.isDirectory ? ' tree-folder' : ' tree-file');
       item.dataset.path = path.join(dirPath, e.name);
       item.style.paddingLeft = (depth * 12 + 8) + 'px';
-      const icon = e.isDirectory ? '📁' : (e.name.endsWith('.cimple') || e.name.endsWith('.cpl') ? '📄' : '📃');
+      const icon = getFileIcon(e.name, e.isDirectory);
       item.innerHTML = `<span class="tree-icon">${icon}</span><span class="tree-name">${escapeHtml(e.name)}</span>`;
       parentEl.appendChild(item);
       if (e.isDirectory) {
@@ -53,7 +63,6 @@ async function loadDir(dirPath, parentEl, depth = 0) {
     console.error('loadDir', err);
   }
 }
-
 
 export async function openFolder() {
   const newPath = await invoke('open-folder');
@@ -105,68 +114,38 @@ export async function saveFileAs(tab) {
   if (filePath) {
     tab.path = filePath;
     tab.title = filePath.split(/[/\\]/).pop();
+    tab.id = 'file-' + filePath;
     tab.dirty = false;
-    editor.updateTabDirty(tab.id);
     editor.renderTabs();
+    return filePath;
   }
-  return filePath;
+  return null;
+}
+
+export async function refreshFolder() {
+  if (!state.workspacePath) return;
+  const treeEl = document.getElementById('file-tree');
+  if (treeEl) {
+    treeEl.innerHTML = '';
+    await loadDir(state.workspacePath, treeEl);
+  }
 }
 
 export async function createFile() {
-  await editor.whenReady();
-  const content = '';
-  const filePath = await invoke('create-file', { defaultPath: state.workspacePath || undefined, content });
-  if (filePath) {
-    if (!state.workspacePath) {
-      const workspaceModule = await import('./workspace.js');
-      await workspaceModule.setWorkspacePath(path.dirname(filePath));
-      await refreshFolder();
-    }
-    await openFile(filePath);
-    editor.focusEditor();
-  }
+  if (!state.workspacePath) return;
+  const fileName = prompt('Enter new file name:');
+  if (!fileName) return;
+  const fullPath = path.join(state.workspacePath, fileName);
+  await invoke('write-file', fullPath, '');
+  await refreshFolder();
+  await openFile(fullPath);
 }
 
 export async function createFolder() {
-  const folderPath = await invoke('create-folder', { defaultPath: state.workspacePath || undefined });
-  if (folderPath) {
-    const workspaceModule = await import('./workspace.js');
-    if (!state.workspacePath) {
-      await workspaceModule.setWorkspacePath(folderPath);
-    }
-    await refreshFolder();
-  }
-}
-
-
-export async function refreshFolder() {
-  const path = state.workspacePath;
-  if (!path) return;
-  const treeEl = document.getElementById('file-tree');
-  const emptyEl = document.getElementById('explorer-empty');
-  if (treeEl && emptyEl) {
-    emptyEl.style.display = 'none';
-    treeEl.style.display = 'block';
-    treeEl.innerHTML = '';
-    await loadDir(path, treeEl);
-  }
-  const workspaceModule = await import('./workspace.js');
-  await workspaceModule.refreshGit();
-}
-
-export async function openRecent() {
-  await editor.whenReady();
-  const workspaceModule = await import('./workspace.js');
-  const recents = workspaceModule.getRecentWorkspaces();
-  if (!recents.length) {
-    await openFolder();
-    return;
-  }
-  const choice = recents.length === 1
-    ? recents[0]
-    : await invoke('show-open-recent', recents);
-  if (!choice) return;
-  await workspaceModule.setWorkspacePath(choice);
+  if (!state.workspacePath) return;
+  const folderName = prompt('Enter new folder name:');
+  if (!folderName) return;
+  const fullPath = path.join(state.workspacePath, folderName);
+  await invoke('create-folder', { defaultPath: fullPath });
   await refreshFolder();
 }
-

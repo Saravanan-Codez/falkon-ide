@@ -1,26 +1,53 @@
 :root {
-    --primary: #43b9ff;
-    --primary-dim: #2a7fb5;
-    --background: #0b0d12;
-    --sidebar-bg: #121622;
-    --activity-bar-bg: #0f131d;
-    --header-bg: #0f131a;
-    --footer-bg: #0f131a;
-    --editor-bg: #0f111a;
-    --surface: rgba(227, 231, 242, 0.04);
-    --surface-hover: rgba(67, 185, 255, 0.12);
-    --text: #e3e7f2;
-    --text-bright: #f8f9fc;
-    --text-muted: #9aa4b5;
-    --accent: #43b9ff;
-    --accent-warning: #f4c86b;
-    --glass-border: rgba(120, 140, 180, 0.18);
-    --selection: rgba(67, 185, 255, 0.25);
-    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-    --font-ui: 'Space Grotesk', 'Inter', sans-serif;
+    /* Falkon Dev Kit Core Tokens */
+    --primary: #8257e5;
+    --primary-dim: #603bb3;
+    --background: #0b0c14;
+    --sidebar-bg: #07080e;
+    --activity-bar-bg: #07080e;
+    --header-bg: #0f111a;
+    --footer-bg: #07080e;
+    --editor-bg: #0b0c14;
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-hover: rgba(130, 87, 229, 0.15);
+    --text: #f1f1f5;
+    --text-bright: #ffffff;
+    --text-muted: #6b7280;
+    --accent: #00f0ff;
+    --accent-warning: #fbbf24;
+    --accent-error: #f87171;
+    --accent-success: #34d399;
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --selection: rgba(130, 87, 229, 0.3);
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --font-ui: 'Space Grotesk', 'Inter', system-ui, sans-serif;
     --sidebar-width: 260px;
     --activity-bar-width: 52px;
-    --shadow-soft: 0 10px 30px rgba(4, 7, 12, 0.45);
+    --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+    /* VS Code Theme CSS Custom Properties Compatibility Layer */
+    --vscode-editor-background: var(--editor-bg);
+    --vscode-editor-foreground: var(--text);
+    --vscode-activityBar-background: var(--activity-bar-bg);
+    --vscode-activityBar-foreground: var(--text-bright);
+    --vscode-activityBar-inactiveForeground: var(--text-muted);
+    --vscode-sideBar-background: var(--sidebar-bg);
+    --vscode-sideBar-foreground: var(--text);
+    --vscode-statusBar-background: var(--footer-bg);
+    --vscode-statusBar-foreground: var(--text);
+    --vscode-titleBar-activeBackground: var(--header-bg);
+    --vscode-tab-activeBackground: var(--editor-bg);
+    --vscode-tab-inactiveBackground: var(--sidebar-bg);
+    --vscode-tab-activeForeground: var(--text-bright);
+    --vscode-tab-inactiveForeground: var(--text-muted);
+    --vscode-commandCenter-background: rgba(255, 255, 255, 0.05);
+    --vscode-commandCenter-activeBackground: rgba(255, 255, 255, 0.1);
+    --vscode-gitDecoration-modifiedResourceForeground: #e2c08d;
+    --vscode-gitDecoration-untrackedResourceForeground: #73c991;
+    --vscode-gitDecoration-deletedResourceForeground: #c74e39;
+    --vscode-list-hoverBackground: rgba(255, 255, 255, 0.06);
+    --vscode-list-activeSelectionBackground: var(--primary);
+    --vscode-focusBorder: var(--primary);
 }
 
 * {

@@ -109,7 +109,46 @@ export function show() {
   createPalette();
   paletteEl.classList.add('visible');
   inputEl.value = '';
+  inputEl.placeholder = 'Type a command...';
   filterCommands('');
+  setTimeout(() => inputEl.focus(), 50);
+}
+
+export async function showQuickOpen() {
+  createPalette();
+  paletteEl.classList.add('visible');
+  inputEl.value = '';
+  inputEl.placeholder = 'Type a file name to open...';
+
+  // Gather workspace files if available
+  let fileList = [];
+  try {
+    const rootPath = state.workspacePath;
+    if (rootPath && window.electronAPI) {
+      const entries = await window.electronAPI.invoke('read-dir', rootPath);
+      if (Array.isArray(entries)) {
+        fileList = entries.filter(e => !e.isDirectory).map(e => ({
+          id: `file:${e.name}`,
+          label: e.name,
+          shortcut: rootPath,
+          fn: async () => {
+            const sep = rootPath.includes('\\') ? '\\' : '/';
+            const fullPath = `${rootPath}${sep}${e.name}`;
+            const content = await window.electronAPI.invoke('read-file', fullPath);
+            editor.addTab({ name: e.name, path: fullPath, content: content || '' });
+          }
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn('Quick open scan error', err);
+  }
+
+  if (fileList.length) {
+    renderList(fileList);
+  } else {
+    filterCommands('');
+  }
   setTimeout(() => inputEl.focus(), 50);
 }
 
@@ -117,3 +156,4 @@ export function hide() {
   paletteEl?.classList.remove('visible');
   editor.getEditor()?.focus();
 }
+
