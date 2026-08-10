@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com blob: data: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob: data:">
+    content="default-src 'self' blob: data: 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https: blob: data:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob: data:">
   <title>Visual Studio Code - OSS</title>
 
   <script>
@@ -160,6 +160,12 @@
           dataFolderName: '.vscode-oss',
           licenseName: 'MIT',
           version: '1.133.0',
+          extensionsGallery: {
+            serviceUrl: 'https://marketplace.visualstudio.com/_apis/public/gallery',
+            itemUrl: 'https://marketplace.visualstudio.com/items',
+            resourceUrlTemplate: 'https://{publisher}.vscode-unpkg.net/{publisher}/{name}/{version}/{path}',
+            controlUrl: 'https://az764295.vo.msecnd.net/extensions/marketplace.json'
+          }
         },
         workspaceProvider,
         commands,

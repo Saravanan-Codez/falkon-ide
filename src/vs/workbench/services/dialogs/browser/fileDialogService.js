@@ -227,7 +227,9 @@ class FileDialogService extends AbstractFileDialogService {
 __decorateClass([
   memoize
 ], FileDialogService.prototype, "fileSystemProvider", 1);
-registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);
+import { TauriFileDialogService } from "./tauriFileDialogService.js";
+const SelectedFileDialogService = globalThis.__tauri_dialogs__ || typeof window !== "undefined" && window.__tauri_dialogs__ ? TauriFileDialogService : FileDialogService;
+registerSingleton(IFileDialogService, SelectedFileDialogService, InstantiationType.Delayed);
 export {
   FileDialogService
 };

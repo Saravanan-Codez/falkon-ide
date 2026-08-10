@@ -47,9 +47,17 @@ window.__tauri_dialogs__ = {
 // ─────────────────────────────────────────────
 
 window.__tauri_terminal__ = {
-  create: (cols, rows, cwd) => invoke('terminal_create', { cols, rows, cwd: cwd ?? null }),
+  create: (cwd, rows, cols) => invoke('terminal_create', {
+    cwd: (typeof cwd === 'string' && cwd.length > 0) ? cwd : null,
+    rows: (typeof rows === 'number') ? rows : 24,
+    cols: (typeof cols === 'number') ? cols : 80
+  }),
   write: (id, data) => invoke('terminal_write', { id, data }),
-  resize: (id, cols, rows) => invoke('terminal_resize', { id, cols, rows }),
+  resize: (id, rows, cols) => invoke('terminal_resize', {
+    id,
+    rows: (typeof rows === 'number') ? rows : 24,
+    cols: (typeof cols === 'number') ? cols : 80
+  }),
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
     if (window.__TAURI__?.event?.listen) {
