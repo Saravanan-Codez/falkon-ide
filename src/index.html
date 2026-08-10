@@ -7,11 +7,13 @@
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com blob: data: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob: data:">
   <title>Falkon Dev Kit | VS Code Workbench</title>
+  <script>
+    // Initialize VS Code FileAccess root URI required by VS Code resource loader
+    self._VSCODE_FILE_ROOT = window.location.origin + '/';
+  </script>
+  <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./vs/workbench/browser/media/style.css">
   <link rel="stylesheet" href="./vs/base/browser/ui/codicons/codicon/codicon.css">
-  <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-    rel="stylesheet">
   <style>
     html, body {
       width: 100%;
@@ -20,37 +22,53 @@
       padding: 0;
       overflow: hidden;
       background-color: #0b0c14;
-      color: #f1f1f5;
-      font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+      color: #cccccc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif;
     }
     #workbench-container {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100vw;
       height: 100vh;
-      display: flex;
-      flex-direction: column;
+      overflow: hidden;
+      background-color: #0b0c14;
     }
   </style>
 </head>
 
-<body>
-  <div id="workbench-container"></div>
+<body class="vs-dark">
+  <div id="workbench-container" class="monaco-workbench vs-dark"></div>
   <script type="module" src="js/tauri-shim.js"></script>
   <script type="module">
+    window.addEventListener('error', (e) => {
+      console.error('[Global Error]', e.error || e.message);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('[Unhandled Rejection]', e.reason);
+    });
+
     import { create } from './dist/workbench.js';
 
     document.addEventListener('DOMContentLoaded', async () => {
       const container = document.getElementById('workbench-container');
       try {
-        create(container, {
+        console.log('[Falkon Dev Kit] Initializing VS Code Web Workbench...');
+        const workbench = create(container, {
           productConfiguration: {
             nameShort: 'Falkon Dev Kit',
             nameLong: 'Falkon Dev Kit',
             applicationName: 'falkon-dev-kit',
             licenseName: 'MIT'
+          },
+          configurationDefaults: {
+            'workbench.colorTheme': 'Default Dark Modern',
+            'workbench.preferredDarkColorTheme': 'Default Dark Modern'
           }
         });
+        console.log('[Falkon Dev Kit] Workbench created:', workbench);
       } catch (err) {
-        console.error('Failed to initialize VS Code Workbench:', err);
+        console.error('[Falkon Dev Kit] Failed to initialize VS Code Workbench:', err);
       }
     });
   </script>
