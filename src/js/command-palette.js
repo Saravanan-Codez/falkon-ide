@@ -28,10 +28,12 @@ const commands = [
   }},
   { id: 'zen-mode', label: 'Toggle Zen Mode', shortcut: 'Ctrl+K Z', fn: () => zenMode.toggle() },
   { id: 'autosave', label: 'Toggle Auto Save', fn: () => { state.autoSaveEnabled = !state.autoSaveEnabled; autosave.setEnabled(state.autoSaveEnabled); } },
-  { id: 'theme-dark', label: 'Color Theme: Dark Modern', fn: () => themes.apply('dark-modern') },
+  { id: 'run-falkon', label: 'Falkon: Run Code', shortcut: 'Ctrl+Shift+R', fn: () => { document.getElementById('run-btn')?.click(); } },
+  { id: 'theme-falkon', label: 'Color Theme: Falkon Neon', fn: () => themes.apply('falkon-dark') },
+  { id: 'theme-vscode', label: 'Color Theme: VS Code Dark+', fn: () => themes.apply('vscode-dark') },
+  { id: 'theme-monokai', label: 'Color Theme: Monokai Pro', fn: () => themes.apply('monokai') },
   { id: 'theme-solarized', label: 'Color Theme: Solarized Dark', fn: () => themes.apply('solarized-dark') },
-  { id: 'theme-abyss', label: 'Color Theme: Abyss', fn: () => themes.apply('abyss') },
-  { id: 'theme-light', label: 'Color Theme: Light Modern', fn: () => themes.apply('light-modern') },
+  { id: 'theme-light', label: 'Color Theme: VS Code Light+', fn: () => themes.apply('light-modern') },
 ];
 
 let paletteEl = null;

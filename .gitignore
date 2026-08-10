@@ -1,39 +1,64 @@
-# Dependencies
+# Dependencies & Cloned VS Code Fork
 node_modules/
+vscode-falkon-dev-kit/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 package-lock.json
+
+# Tauri & Rust Build Files
+src-tauri/target/
+src-tauri/gen/
+src-tauri/.cargo/
+target/
+*.rs.bk
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Build and Dist
+# Build and Dist Outputs
 dist/
 release/
 out/
+build/
 *.exe
+*.dll
+*.pdb
+*.dylib
+*.so
 *.dmg
 *.AppImage
 *.deb
 *.rpm
+*.msi
 
-# IDEs and Editors
-.vscode/
+# IDEs, Editors & Tooling
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 .idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.bak
+*.tmp
 
-# Environment
+# Environment & Secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
-# Local history
+# Local history & Logs
 .history/
+*.log

@@ -7,7 +7,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   'write-file', 'file-exists', 'create-temp-file', 'delete-file',
   'show-open-recent', 'create-file', 'create-folder',
   'terminal-spawn', 'terminal-write', 'terminal-kill', 'terminal-sigint',
-  'git-branch', 'git-status', 'git-is-repo', 'run-cimple'
+  'git-branch', 'git-status', 'git-is-repo', 'run-cimple', 'run-falkon'
 ];
 
 const ALLOWED_ON_CHANNELS = [
@@ -59,7 +59,8 @@ window.electronAPI = {
       case 'git-is-repo':
         return invoke('git_is_repo', { cwd: args[0] || null });
       case 'run-cimple':
-        return invoke('run_cimple', { entry: args[0] || '', options: args[1] || {} });
+      case 'run-falkon':
+        return invoke('run_falkon', { entry: args[0] || '', options: args[1] || {} });
       default:
         return throwUnimplemented(channel);
     }

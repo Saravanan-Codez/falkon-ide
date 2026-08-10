@@ -6,7 +6,7 @@ import * as editor from './editor.js';
 import * as git from './git.js';
 import { safeParse } from './utils.js';
 
-const RECENT_KEY = 'cimple.recentWorkspaces';
+const RECENT_KEY = 'falkon.recentWorkspaces';
 const MAX_RECENT = 6;
 const emitter = new EventTarget();
 const STORAGE = typeof localStorage !== 'undefined' ? localStorage : null;

@@ -1,55 +1,27 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Falkon Dev Kit",
+  "version": "0.1.0",
+  "identifier": "com.falkon.devkit",
   "build": {
     "beforeBuildCommand": "",
-    "beforeDevCommand": ""
+    "beforeDevCommand": "",
+    "frontendDist": "../src"
   },
-  "package": {
-    "productName": "Cimple Dev Kit",
-    "version": "0.1.0"
-  },
-  "tauri": {
-    "bundle": {
-      "identifier": "com.cimple.devkit",
-      "active": true,
-      "targets": ["all"]
-    },
+  "app": {
     "windows": [
       {
-        "title": "Cimple Dev Kit",
+        "title": "Falkon Dev Kit",
         "width": 1200,
         "height": 800
       }
     ],
-    "allowlist": {
-      "all": false,
-      "fs": {
-        "scope": [],
-        "readFile": true,
-        "writeFile": true,
-        "readDir": true
-      },
-      "dialog": {
-        "open": true,
-        "save": true
-      },
-      "process": {
-        "all": true
-      },
-      "shell": {
-        "all": true
-      },
-      "path": {
-        "all": true
-      },
-      "event": {
-        "all": true
-      }
-    },
     "security": {
       "csp": null
-    },
-    "updater": {
-      "active": false
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all"
   }
 }

@@ -2,6 +2,7 @@
  * Cimple Edit - Main application entry
  */
 import { state } from './state.js';
+import { registerFalkonLanguage } from './falkon-lang.js';
 import * as editor from './editor.js';
 import * as fileExplorer from './file-explorer.js';
 import * as panels from './panels.js';
@@ -39,6 +40,7 @@ workspace.onWorkspaceChange(() => {
 
 if (window.monacoReady) {
   window.monacoReady.then((monaco) => {
+    registerFalkonLanguage(monaco);
     editor.initMonaco(monaco);
     editor.renderTabs();
     editor.editorFromTab();

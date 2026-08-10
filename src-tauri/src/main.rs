@@ -1,19 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use serde::Serialize;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use tauri::{Manager, Runtime};
-
-#[derive(Serialize)]
-struct RunResult {
-  code: i32,
-  stdout: String,
-  stderr: String,
-  entry_path: String,
-}
 
 #[tauri::command]
 fn read_file(file_path: String) -> Result<String, String> {
@@ -45,7 +35,7 @@ fn file_exists(file_path: String) -> bool {
 #[tauri::command]
 fn create_temp_file(content: String) -> Result<String, String> {
   let mut path = std::env::temp_dir();
-  let file_name = format!("cimple_run_{}.cimple", chrono::Utc::now().timestamp_millis());
+  let file_name = format!("falkon_run_{}.falkon", chrono::Utc::now().timestamp_millis());
   path.push(file_name);
   let p = path.to_string_lossy().to_string();
   fs::write(&p, content).map_err(|e| e.to_string())?;
@@ -89,7 +79,7 @@ fn git_is_repo(cwd: Option<String>) -> bool {
 }
 
 #[tauri::command]
-fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+fn run_falkon(entry: String, options: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
   let args = options.as_ref().and_then(|o| o.get("args")).and_then(|a| a.as_array()).map(|arr| {
     arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect::<Vec<String>>()
   }).unwrap_or_default();
@@ -110,12 +100,18 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
   }))
 }
 
+#[tauri::command]
+fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+  run_falkon(entry, options)
+}
+
 fn main() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
       read_file, write_file, read_dir, file_exists, create_temp_file, delete_file,
-      git_branch, git_status, git_is_repo, run_cimple
+      git_branch, git_status, git_is_repo, run_falkon, run_cimple
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
+
