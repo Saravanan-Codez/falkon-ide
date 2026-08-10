@@ -1,33 +1,30 @@
-# Dependencies & Cloned VS Code Fork
-node_modules/
+# Cloned repository
 vscode-falkon-dev-kit/
+
+# Dependencies
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-package-lock.json
 
-# Tauri & Rust Build Files
+# Tauri & Rust Build Outputs
 src-tauri/target/
 src-tauri/gen/
 src-tauri/.cargo/
 target/
 *.rs.bk
 
-# OS files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Build and Dist Outputs
+# Compiled JS & Distribution Bundles
+src/dist/
+src/out/
+out/
 dist/
 release/
-out/
-build/
+build/node_modules/
+build/darwin/.dmgbuild
+
+# Binaries & Tooling Outputs
 *.exe
 *.dll
 *.pdb
@@ -39,26 +36,25 @@ build/
 *.rpm
 *.msi
 
-# IDEs, Editors & Tooling
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-*.bak
-*.tmp
+# Temporary & OS Files
+.DS_Store
+.DS_Store?
+._*
+ehthumbs.db
+Thumbs.db
+.tmp/
+.cache/
+*.log
 
-# Environment & Secrets
+# Test & Coverage Outputs
+coverage/
+test_data/
+test-results/
+test-results.xml
+.playwright-cli/
+.playwright-mcp/
+
+# Local Environment
 .env
 .env.*
 !.env.example
-
-# Local history & Logs
-.history/
-*.log

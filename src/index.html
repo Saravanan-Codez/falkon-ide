@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com blob: data: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob: data:">
-  <title>Falkon Dev Kit | VS Code Workbench</title>
+  <title>VS Code | Tauri</title>
   <script>
     // Initialize VS Code FileAccess root URI required by VS Code resource loader
     self._VSCODE_FILE_ROOT = window.location.origin + '/';
   </script>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./dist/workbench.css">
   <link rel="stylesheet" href="./vs/workbench/browser/media/style.css">
   <link rel="stylesheet" href="./vs/base/browser/ui/codicons/codicon/codicon.css">
   <style>
@@ -21,7 +21,7 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background-color: #0b0c14;
+      background-color: #1e1e1e;
       color: #cccccc;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif;
     }
@@ -32,7 +32,7 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background-color: #0b0c14;
+      background-color: #1e1e1e;
     }
   </style>
 </head>
@@ -53,12 +53,12 @@
     document.addEventListener('DOMContentLoaded', async () => {
       const container = document.getElementById('workbench-container');
       try {
-        console.log('[Falkon Dev Kit] Initializing VS Code Web Workbench...');
+        console.log('[VS Code] Initializing Web Workbench...');
         const workbench = create(container, {
           productConfiguration: {
-            nameShort: 'Falkon Dev Kit',
-            nameLong: 'Falkon Dev Kit',
-            applicationName: 'falkon-dev-kit',
+            nameShort: 'Code - OSS',
+            nameLong: 'Code - OSS',
+            applicationName: 'code-oss',
             licenseName: 'MIT'
           },
           configurationDefaults: {
@@ -66,9 +66,9 @@
             'workbench.preferredDarkColorTheme': 'Default Dark Modern'
           }
         });
-        console.log('[Falkon Dev Kit] Workbench created:', workbench);
+        console.log('[VS Code] Workbench created:', workbench);
       } catch (err) {
-        console.error('[Falkon Dev Kit] Failed to initialize VS Code Workbench:', err);
+        console.error('[VS Code] Failed to initialize Workbench:', err);
       }
     });
   </script>
