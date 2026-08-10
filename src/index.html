@@ -1,207 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self' blob: data: 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https: blob: data:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob: data:">
-  <title>Visual Studio Code - OSS</title>
-
-  <script>
-    // Required by VS Code FileAccess.toUri()
-    self._VSCODE_FILE_ROOT = window.location.origin + '/';
-  </script>
-
-  <!-- Complete VS Code Workbench CSS bundle with inlined fonts & codicons -->
-  <link rel="stylesheet" href="./dist/workbench.css">
-
+  <title>Falkon Dev Kit</title>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%;
       height: 100%;
-      margin: 0;
-      padding: 0;
       overflow: hidden;
       background: #181818;
       color: #cccccc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
     }
-    #workbench-container {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      background: #181818;
+    .splash {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
     }
+    .logo {
+      width: 64px;
+      height: 64px;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #e0e0e0;
+      letter-spacing: 0.5px;
+    }
+    .status {
+      font-size: 12px;
+      color: #888888;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2.5px solid #2d2d2d;
+      border-top-color: #0078d4;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%, 100% { opacity: 0.85; transform: scale(0.98); } 50% { opacity: 1; transform: scale(1.02); } }
   </style>
 </head>
+<body>
+  <div class="splash">
+    <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" rx="20" fill="#1e1e1e"/>
+      <path d="M25 50L45 70L75 30" stroke="#0078d4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="spinner"></div>
+    <div class="title">Falkon Dev Kit</div>
+    <div class="status" id="status-text">Connecting to extension host...</div>
+  </div>
 
-<body class="vs-dark">
-  <div id="workbench-container" class="monaco-workbench vs-dark"></div>
+  <script>
+    const SERVER_URL = 'http://127.0.0.1:9888/?tkn=falkon-dev-token';
+    const statusText = document.getElementById('status-text');
 
-  <!-- Load Tauri IPC bridges first -->
-  <script type="module" src="./js/tauri-shim.js"></script>
-
-  <script type="module">
-    import { create } from './dist/workbench.js';
-
-    window.addEventListener('error', (e) => console.error('[VSCode Error]', e.error || e.message));
-    window.addEventListener('unhandledrejection', (e) => console.error('[VSCode Rejection]', e.reason));
-
-    // ── Workspace Provider: handles open folder / default project folder ──
-    const serverAuthority = '127.0.0.1:9888';
-    const _folderPath = localStorage.getItem('vscode-tauri-last-folder') || '/home/gt/falkon-labs/Falkon_Dev_Kit';
-    const _currentWorkspace = {
-      folderUri: {
-        scheme: 'vscode-remote',
-        authority: serverAuthority,
-        path: (navigator.platform && navigator.platform.startsWith('Win'))
-          ? '/' + _folderPath.replace(/\\/g, '/')
-          : _folderPath,
-        query: '',
-        fragment: ''
+    async function checkAndRedirect() {
+      try {
+        const res = await fetch('http://127.0.0.1:9888/?tkn=falkon-dev-token', {
+          method: 'HEAD',
+          mode: 'no-cors'
+        });
+        // Server is reachable, navigate directly
+        window.location.replace(SERVER_URL);
+      } catch (err) {
+        statusText.textContent = 'Starting server engine...';
+        setTimeout(checkAndRedirect, 300);
       }
-    };
-
-    const workspaceProvider = {
-      workspace: _currentWorkspace,
-      trusted: true,
-      open: async (workspace, options) => {
-        if (workspace?.folderUri) {
-          const path = workspace.folderUri.path;
-          localStorage.setItem('vscode-tauri-last-folder', path);
-        }
-        window.location.reload();
-        return true;
-      }
-    };
-
-    // ── Commands exposed to VS Code (Open Folder via native dialog) ──
-    const commands = [
-      {
-        id: 'tauri.openFolder',
-        label: 'Open Folder (Native)...',
-        handler: async () => {
-          const path = await window.__tauri_dialogs__?.openFolder();
-          if (!path) return;
-          localStorage.setItem('vscode-tauri-last-folder', path);
-          window.location.reload();
-        }
-      },
-      {
-        id: 'tauri.openFile',
-        label: 'Open File (Native)...',
-        handler: async () => {
-          const path = await window.__tauri_dialogs__?.openFile();
-          if (!path) return;
-          return path;
-        }
-      }
-    ];
-
-    // ── Builtin Dark Modern Theme Colors ──
-    const initialColorTheme = {
-      themeType: 'dark',
-      colors: {
-        'activityBar.background': '#181818',
-        'activityBar.border': '#2B2B2B',
-        'activityBar.foreground': '#D7D7D7',
-        'activityBar.inactiveForeground': '#868686',
-        'activityBar.activeBorder': '#0078D4',
-        'activityBarBadge.background': '#0078D4',
-        'activityBarBadge.foreground': '#FFFFFF',
-        'sideBar.background': '#181818',
-        'sideBar.border': '#2B2B2B',
-        'sideBar.foreground': '#CCCCCC',
-        'sideBarTitle.foreground': '#BBBBBB',
-        'sideBarSectionHeader.background': '#181818',
-        'sideBarSectionHeader.foreground': '#CCCCCC',
-        'editor.background': '#1F1F1F',
-        'editor.foreground': '#CCCCCC',
-        'editorGroupHeader.tabsBackground': '#181818',
-        'editorGroupHeader.tabsBorder': '#2B2B2B',
-        'tab.activeBackground': '#1F1F1F',
-        'tab.activeForeground': '#FFFFFF',
-        'tab.inactiveBackground': '#181818',
-        'tab.inactiveForeground': '#868686',
-        'tab.border': '#2B2B2B',
-        'statusBar.background': '#181818',
-        'statusBar.foreground': '#CCCCCC',
-        'statusBar.border': '#2B2B2B',
-        'titleBar.activeBackground': '#181818',
-        'titleBar.activeForeground': '#CCCCCC',
-        'titleBar.border': '#2B2B2B',
-        'panel.background': '#181818',
-        'panel.border': '#2B2B2B',
-        'panelTitle.activeForeground': '#CCCCCC',
-        'panelTitle.inactiveForeground': '#868686',
-        'panelTitle.activeBorder': '#0078D4',
-        'button.background': '#0078D4',
-        'button.foreground': '#FFFFFF',
-        'button.hoverBackground': '#026EC1',
-        'input.background': '#313131',
-        'input.border': '#3C3C3C',
-        'input.foreground': '#CCCCCC',
-        'focusBorder': '#0078D4',
-        'foreground': '#CCCCCC'
-      }
-    };
-
-    // ── Create VS Code Workbench ──
-    const container = document.getElementById('workbench-container');
-    try {
-      console.log('[VS Code] Initializing workbench on Tauri...');
-      const workbench = create(container, {
-        remoteAuthority: serverAuthority,
-        connectionToken: 'falkon-dev-token',
-        productConfiguration: {
-          nameShort: 'Code - OSS',
-          nameLong: 'Visual Studio Code - OSS',
-          applicationName: 'code-oss',
-          dataFolderName: '.vscode-oss',
-          licenseName: 'MIT',
-          version: '1.133.0',
-          extensionsGallery: {
-            serviceUrl: 'https://marketplace.visualstudio.com/_apis/public/gallery',
-            itemUrl: 'https://marketplace.visualstudio.com/items',
-            resourceUrlTemplate: 'https://{publisher}.vscode-unpkg.net/{publisher}/{name}/{version}/{path}',
-            controlUrl: 'https://az764295.vo.msecnd.net/extensions/marketplace.json'
-          }
-        },
-        workspaceProvider,
-        commands,
-        initialColorTheme,
-        configurationDefaults: {
-          'window.menuBarVisibility': 'classic',
-          'window.titleBarStyle': 'custom',
-          'window.commandCenter': true,
-          'workbench.layoutControl.enabled': true,
-          'workbench.colorTheme': 'Default Dark Modern',
-          'workbench.preferredDarkColorTheme': 'Default Dark Modern',
-          'workbench.iconTheme': 'vs-seti',
-          'editor.fontFamily': '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
-          'editor.fontSize': 14,
-          'editor.renderWhitespace': 'selection',
-          'files.autoSave': 'afterDelay',
-          'terminal.integrated.defaultProfile.windows': 'PowerShell',
-          'terminal.integrated.defaultProfile.linux': 'bash',
-        },
-        defaultLayout: {
-          views: [
-            { id: 'workbench.view.explorer' }
-          ],
-          force: true
-        },
-        enableWorkspaceTrust: false,
-      });
-
-      console.log('[VS Code] Workbench created successfully');
-    } catch (err) {
-      console.error('[VS Code] Failed to initialize workbench:', err);
     }
+
+    checkAndRedirect();
   </script>
 </body>
-
 </html>

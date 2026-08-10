@@ -117,6 +117,12 @@ async function bundleTauriVSCode() {
     if (!fs.existsSync('out/nls.messages.js')) {
       fs.writeFileSync('out/nls.messages.js', 'export default {};\n');
     }
+    if (!fs.existsSync('out/nls.messages.json')) {
+      fs.writeFileSync('out/nls.messages.json', '{}\n');
+    }
+    if (!fs.existsSync('src/nls.messages.json')) {
+      fs.writeFileSync('src/nls.messages.json', '{}\n');
+    }
 
     const cssStats = fs.statSync('src/dist/workbench.css');
     const jsStats = fs.statSync('src/dist/workbench.js');

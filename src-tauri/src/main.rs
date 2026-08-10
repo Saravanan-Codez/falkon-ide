@@ -505,15 +505,47 @@ struct ServerManager {
     child: Mutex<Option<std::process::Child>>,
 }
 
-fn start_node_server() -> Option<std::process::Child> {
-    let node_cmd = if cfg!(windows) { "node.exe" } else { "node" };
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-    let mut server_path = std::path::PathBuf::from(&manifest_dir);
-    if server_path.ends_with("src-tauri") {
-        server_path.pop();
+fn find_server_script() -> Option<std::path::PathBuf> {
+    let candidates = [
+        // 1. Current working directory
+        std::env::current_dir().ok().map(|d| d.join("src").join("server-main.js")),
+        std::env::current_dir().ok().map(|d| d.join("server-main.js")),
+        // 2. Executable directory parent
+        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
+        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|d| d.parent()).map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
+        // 3. Compile-time manifest dir fallback
+        option_env!("CARGO_MANIFEST_DIR").map(|d| {
+            let mut p = std::path::PathBuf::from(d);
+            if p.ends_with("src-tauri") { p.pop(); }
+            p.join("src").join("server-main.js")
+        }),
+        // 4. Standard dev path
+        Some(std::path::PathBuf::from("/home/gt/falkon-labs/Falkon_Dev_Kit/src/server-main.js")),
+    ];
+
+    for candidate in candidates.into_iter().flatten() {
+        if candidate.exists() {
+            return Some(candidate);
+        }
     }
-    server_path.push("src");
-    server_path.push("server-main.js");
+    None
+}
+
+fn start_node_server() -> Option<std::process::Child> {
+    // Check if server is already running on port 9888
+    if std::net::TcpStream::connect("127.0.0.1:9888").is_ok() {
+        println!("[Falkon] Node.js Extension Host server is already running on 127.0.0.1:9888");
+        return None;
+    }
+
+    let node_cmd = if cfg!(windows) { "node.exe" } else { "node" };
+    let server_path = match find_server_script() {
+        Some(p) => p,
+        None => {
+            eprintln!("[Falkon] Error: Could not locate server-main.js");
+            return None;
+        }
+    };
 
     let server_path_str = server_path.to_string_lossy().to_string();
     println!("[Falkon] Starting Node.js Extension Host sidecar: {}", server_path_str);
@@ -528,6 +560,8 @@ fn start_node_server() -> Option<std::process::Child> {
     match cmd.spawn() {
         Ok(child) => {
             println!("[Falkon] Node.js Extension Host sidecar spawned with PID: {}", child.id());
+            // Give the server a brief moment to bind to the port
+            std::thread::sleep(std::time::Duration::from_millis(500));
             Some(child)
         }
         Err(e) => {

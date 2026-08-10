@@ -18,11 +18,11 @@
         "minHeight": 600,
         "resizable": true,
         "maximized": true,
-        "decorations": false
+        "decorations": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' http://127.0.0.1:9888 ws://127.0.0.1:9888 https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://127.0.0.1:9888 ws://127.0.0.1:9888 https: blob: data:; img-src 'self' http://127.0.0.1:9888 https: data: blob:; font-src 'self' http://127.0.0.1:9888 https: data:;"
     }
   },
   "bundle": {

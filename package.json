@@ -10,8 +10,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "npm run bundle-vs && env -u LD_LIBRARY_PATH -u GTK_PATH tauri dev",
-    "bundle-vs": "node build-vs.js && node bundle-vscode-tauri.js",
+    "dev": "npm run bundle-vs && env -u LD_LIBRARY_PATH -u GTK_PATH npx tauri dev",
+    "bundle-vs": "node bundle-vscode-tauri.js",
     "unit-test": "node --test tests/*.test.js",
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
