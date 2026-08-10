@@ -2,12 +2,24 @@ import * as esbuild from 'esbuild';
 import fs from 'fs';
 import path from 'path';
 
+const IGNORED_DIRS = new Set([
+  'test',
+  'node_modules',
+  'out',
+  'dist',
+  'electron-browser',
+  'electron-main',
+  'electron-sandbox',
+  'electron-utility',
+  'electron-sandbox-preload',
+]);
+
 function findTsFiles(dir, fileList = []) {
   const items = fs.readdirSync(dir, { withFileTypes: true });
   for (const item of items) {
     const fullPath = path.join(dir, item.name);
     if (item.isDirectory()) {
-      if (item.name !== 'test' && item.name !== 'node_modules' && item.name !== 'out' && item.name !== 'dist') {
+      if (!IGNORED_DIRS.has(item.name)) {
         findTsFiles(fullPath, fileList);
       }
     } else if (item.isFile()) {
@@ -20,9 +32,8 @@ function findTsFiles(dir, fileList = []) {
 }
 
 async function buildVSCode() {
-  console.log('Scanning TypeScript source files in src/vs...');
+  console.log('⚡ Transpiling VS Code browser & workbench modules...');
   const files = findTsFiles('src/vs');
-  console.log(`Found ${files.length} TypeScript files to transpile.`);
 
   const startTime = Date.now();
   try {
@@ -34,12 +45,12 @@ async function buildVSCode() {
       target: 'es2022',
       platform: 'browser',
       tsconfig: 'tsconfig.json',
-      logLevel: 'warning'
+      logLevel: 'error'
     });
 
-    console.log(`✅ Successfully transpiled ${files.length} VS Code files to src/ in ${Date.now() - startTime}ms!`);
+    console.log(`✅ Transpiled ${files.length} modules in ${Date.now() - startTime}ms`);
   } catch (err) {
-    console.error('❌ ESBuild transpilation error:', err);
+    console.error('❌ Transpilation error:', err);
   }
 }
 

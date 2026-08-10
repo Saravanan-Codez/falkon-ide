@@ -6,17 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com blob: data: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob: data:">
-  <title>Code - OSS</title>
+  <title>Visual Studio Code - OSS</title>
 
   <script>
     // Required by VS Code FileAccess.toUri()
     self._VSCODE_FILE_ROOT = window.location.origin + '/';
   </script>
 
-  <!-- VS Code Workbench CSS bundles -->
+  <!-- Complete VS Code Workbench CSS bundle with inlined fonts & codicons -->
   <link rel="stylesheet" href="./dist/workbench.css">
-  <link rel="stylesheet" href="./vs/workbench/browser/media/style.css">
-  <link rel="stylesheet" href="./vs/base/browser/ui/codicons/codicon/codicon.css">
 
   <style>
     html, body {
@@ -25,18 +23,17 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #1e1e1e;
+      background: #181818;
       color: #cccccc;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
     }
     #workbench-container {
-      position: absolute;
-      top: 0;
-      left: 0;
+      position: fixed;
+      inset: 0;
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: #1e1e1e;
+      background: #181818;
     }
   </style>
 </head>
@@ -53,22 +50,19 @@
     window.addEventListener('error', (e) => console.error('[VSCode Error]', e.error || e.message));
     window.addEventListener('unhandledrejection', (e) => console.error('[VSCode Rejection]', e.reason));
 
-    // ── Workspace Provider: handles open folder / last folder restore ──
-    let _currentWorkspace = undefined;
-    const _lastFolderPath = localStorage.getItem('vscode-tauri-last-folder');
-    if (_lastFolderPath) {
-      _currentWorkspace = {
-        folderUri: {
-          scheme: 'file',
-          path: (navigator.platform && navigator.platform.startsWith('Win'))
-            ? '/' + _lastFolderPath.replace(/\\/g, '/')
-            : _lastFolderPath,
-          authority: '',
-          query: '',
-          fragment: ''
-        }
-      };
-    }
+    // ── Workspace Provider: handles open folder / default project folder ──
+    const _folderPath = localStorage.getItem('vscode-tauri-last-folder') || '/home/gt/falkon-labs/Falkon_Dev_Kit';
+    const _currentWorkspace = {
+      folderUri: {
+        scheme: 'file',
+        path: (navigator.platform && navigator.platform.startsWith('Win'))
+          ? '/' + _folderPath.replace(/\\/g, '/')
+          : _folderPath,
+        authority: '',
+        query: '',
+        fragment: ''
+      }
+    };
 
     const workspaceProvider = {
       workspace: _currentWorkspace,
@@ -106,6 +100,54 @@
       }
     ];
 
+    // ── Builtin Dark Modern Theme Colors ──
+    const initialColorTheme = {
+      themeType: 'dark',
+      colors: {
+        'activityBar.background': '#181818',
+        'activityBar.border': '#2B2B2B',
+        'activityBar.foreground': '#D7D7D7',
+        'activityBar.inactiveForeground': '#868686',
+        'activityBar.activeBorder': '#0078D4',
+        'activityBarBadge.background': '#0078D4',
+        'activityBarBadge.foreground': '#FFFFFF',
+        'sideBar.background': '#181818',
+        'sideBar.border': '#2B2B2B',
+        'sideBar.foreground': '#CCCCCC',
+        'sideBarTitle.foreground': '#BBBBBB',
+        'sideBarSectionHeader.background': '#181818',
+        'sideBarSectionHeader.foreground': '#CCCCCC',
+        'editor.background': '#1F1F1F',
+        'editor.foreground': '#CCCCCC',
+        'editorGroupHeader.tabsBackground': '#181818',
+        'editorGroupHeader.tabsBorder': '#2B2B2B',
+        'tab.activeBackground': '#1F1F1F',
+        'tab.activeForeground': '#FFFFFF',
+        'tab.inactiveBackground': '#181818',
+        'tab.inactiveForeground': '#868686',
+        'tab.border': '#2B2B2B',
+        'statusBar.background': '#181818',
+        'statusBar.foreground': '#CCCCCC',
+        'statusBar.border': '#2B2B2B',
+        'titleBar.activeBackground': '#181818',
+        'titleBar.activeForeground': '#CCCCCC',
+        'titleBar.border': '#2B2B2B',
+        'panel.background': '#181818',
+        'panel.border': '#2B2B2B',
+        'panelTitle.activeForeground': '#CCCCCC',
+        'panelTitle.inactiveForeground': '#868686',
+        'panelTitle.activeBorder': '#0078D4',
+        'button.background': '#0078D4',
+        'button.foreground': '#FFFFFF',
+        'button.hoverBackground': '#026EC1',
+        'input.background': '#313131',
+        'input.border': '#3C3C3C',
+        'input.foreground': '#CCCCCC',
+        'focusBorder': '#0078D4',
+        'foreground': '#CCCCCC'
+      }
+    };
+
     // ── Create VS Code Workbench ──
     const container = document.getElementById('workbench-container');
     try {
@@ -121,15 +163,27 @@
         },
         workspaceProvider,
         commands,
+        initialColorTheme,
         configurationDefaults: {
+          'window.menuBarVisibility': 'classic',
+          'window.titleBarStyle': 'custom',
+          'window.commandCenter': true,
+          'workbench.layoutControl.enabled': true,
           'workbench.colorTheme': 'Default Dark Modern',
           'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+          'workbench.iconTheme': 'vs-seti',
           'editor.fontFamily': '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
           'editor.fontSize': 14,
           'editor.renderWhitespace': 'selection',
           'files.autoSave': 'afterDelay',
           'terminal.integrated.defaultProfile.windows': 'PowerShell',
           'terminal.integrated.defaultProfile.linux': 'bash',
+        },
+        defaultLayout: {
+          views: [
+            { id: 'workbench.view.explorer' }
+          ],
+          force: true
         },
         enableWorkspaceTrust: false,
       });

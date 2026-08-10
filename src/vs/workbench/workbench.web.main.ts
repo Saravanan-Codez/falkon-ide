@@ -164,6 +164,12 @@ import './contrib/extensions/browser/extensions.web.contribution.js';
 import './contrib/terminal/browser/terminal.web.contribution.js';
 import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 import './contrib/terminal/browser/terminalInstanceService.js';
+import { Registry } from '../platform/registry/common/platform.js';
+import { TauriTerminalContribution } from './contrib/terminal/browser/tauriTerminalBackend.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from './common/contributions.js';
+import { LifecyclePhase } from './services/lifecycle/common/lifecycle.js';
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Restored);
 
 // Tasks
 import './contrib/tasks/browser/taskService.js';

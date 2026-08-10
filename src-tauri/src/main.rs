@@ -474,6 +474,14 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
 // ─────────────────────────────────────────────
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        // Avoid DRI2 / EGL driver warnings on Linux
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+
     let pty_store: PtyStore = Mutex::new(HashMap::new());
 
     tauri::Builder::default()
