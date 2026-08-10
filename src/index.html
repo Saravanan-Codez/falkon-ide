@@ -6,71 +6,136 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com blob: data: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob: data:">
-  <title>VS Code | Tauri</title>
+  <title>VS Code</title>
+
   <script>
-    // Initialize VS Code FileAccess root URI required by VS Code resource loader
+    // ── Required by VS Code FileAccess.toUri() ──
     self._VSCODE_FILE_ROOT = window.location.origin + '/';
+
+    // ── Restore last opened folder from localStorage ──
+    const _lastFolder = localStorage.getItem('vscode-tauri-last-folder');
   </script>
+
+  <!-- VS Code Workbench CSS bundles -->
   <link rel="stylesheet" href="./dist/workbench.css">
   <link rel="stylesheet" href="./vs/workbench/browser/media/style.css">
   <link rel="stylesheet" href="./vs/base/browser/ui/codicons/codicon/codicon.css">
+
   <style>
     html, body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
+      width: 100%; height: 100%;
+      margin: 0; padding: 0;
       overflow: hidden;
-      background-color: #1e1e1e;
+      background: #1e1e1e;
       color: #cccccc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, sans-serif;
     }
     #workbench-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
+      position: absolute; top: 0; left: 0;
+      width: 100vw; height: 100vh;
       overflow: hidden;
-      background-color: #1e1e1e;
+      background: #1e1e1e;
     }
   </style>
 </head>
 
 <body class="vs-dark">
   <div id="workbench-container" class="monaco-workbench vs-dark"></div>
-  <script type="module" src="js/tauri-shim.js"></script>
-  <script type="module">
-    window.addEventListener('error', (e) => {
-      console.error('[Global Error]', e.error || e.message);
-    });
-    window.addEventListener('unhandledrejection', (e) => {
-      console.error('[Unhandled Rejection]', e.reason);
-    });
 
+  <!-- Load Tauri IPC bridges first (non-module so it runs synchronously) -->
+  <script type="module" src="./js/tauri-shim.js"></script>
+
+  <script type="module">
     import { create } from './dist/workbench.js';
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      const container = document.getElementById('workbench-container');
-      try {
-        console.log('[VS Code] Initializing Web Workbench...');
-        const workbench = create(container, {
-          productConfiguration: {
-            nameShort: 'Code - OSS',
-            nameLong: 'Code - OSS',
-            applicationName: 'code-oss',
-            licenseName: 'MIT'
-          },
-          configurationDefaults: {
-            'workbench.colorTheme': 'Default Dark Modern',
-            'workbench.preferredDarkColorTheme': 'Default Dark Modern'
-          }
-        });
-        console.log('[VS Code] Workbench created:', workbench);
-      } catch (err) {
-        console.error('[VS Code] Failed to initialize Workbench:', err);
+    window.addEventListener('error', (e) => console.error('[VSCode Error]', e.error || e.message));
+    window.addEventListener('unhandledrejection', (e) => console.error('[VSCode Rejection]', e.reason));
+
+    // ── Workspace Provider: handles open folder / last folder restore ──
+    let _currentWorkspace = undefined;
+    const _lastFolderPath = localStorage.getItem('vscode-tauri-last-folder');
+    if (_lastFolderPath) {
+      _currentWorkspace = {
+        folderUri: {
+          scheme: 'file',
+          path: navigator.platform.startsWith('Win')
+            ? '/' + _lastFolderPath.replace(/\\/g, '/')
+            : _lastFolderPath,
+          authority: '',
+          query: '',
+          fragment: ''
+        }
+      };
+    }
+
+    const workspaceProvider = {
+      workspace: _currentWorkspace,
+      trusted: true,
+      open: async (workspace, options) => {
+        if (workspace?.folderUri) {
+          const path = workspace.folderUri.path;
+          localStorage.setItem('vscode-tauri-last-folder', path);
+        }
+        window.location.reload();
+        return true;
       }
-    });
+    };
+
+    // ── Commands exposed to VS Code (Open Folder via native dialog) ──
+    const commands = [
+      {
+        id: 'tauri.openFolder',
+        label: 'Open Folder (Native)...',
+        handler: async () => {
+          const path = await window.__tauri_dialogs__?.openFolder();
+          if (!path) return;
+          localStorage.setItem('vscode-tauri-last-folder', path);
+          window.location.reload();
+        }
+      },
+      {
+        id: 'tauri.openFile',
+        label: 'Open File (Native)...',
+        handler: async () => {
+          const path = await window.__tauri_dialogs__?.openFile();
+          if (!path) return;
+          // VS Code handles opening a file URI via commands
+          return path;
+        }
+      }
+    ];
+
+    // ── Create VS Code Workbench ──
+    const container = document.getElementById('workbench-container');
+    try {
+      console.log('[VS Code] Initializing workbench...');
+      const workbench = create(container, {
+        productConfiguration: {
+          nameShort: 'Code - OSS',
+          nameLong: 'Code - OSS',
+          applicationName: 'code-oss',
+          dataFolderName: '.vscode-oss',
+          licenseName: 'MIT',
+          version: '1.133.0',
+        },
+        workspaceProvider,
+        commands,
+        configurationDefaults: {
+          'workbench.colorTheme': 'Default Dark Modern',
+          'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+          'editor.fontFamily': '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
+          'editor.fontSize': 14,
+          'editor.renderWhitespace': 'selection',
+          'files.autoSave': 'afterDelay',
+          'terminal.integrated.defaultProfile.windows': 'PowerShell',
+        },
+        enableWorkspaceTrust: false,
+      });
+
+      console.log('[VS Code] Workbench created successfully');
+    } catch (err) {
+      console.error('[VS Code] Failed to initialize workbench:', err);
+    }
   </script>
 </body>
 
