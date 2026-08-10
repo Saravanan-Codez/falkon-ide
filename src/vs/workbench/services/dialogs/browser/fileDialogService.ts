@@ -29,6 +29,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
+			if (folderPath) {
+				const uri = URI.file(folderPath);
+				return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: false });
+			}
+			return;
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -48,6 +57,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const filePath = await (window as any).__tauri_dialogs__.openFile();
+			if (filePath) {
+				const uri = URI.file(filePath);
+				this.addFileToRecentlyOpened(uri);
+				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+			}
+			return;
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -82,6 +101,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
+			if (folderPath) {
+				const uri = URI.file(folderPath);
+				return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: false });
+			}
+			return;
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -111,6 +139,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const savePath = await (window as any).__tauri_dialogs__.saveFile(defaultUri?.fsPath);
+			if (savePath) {
+				return URI.file(savePath);
+			}
+			return undefined;
+		}
+
 		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
 
 		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);

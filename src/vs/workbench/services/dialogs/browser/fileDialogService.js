@@ -9,6 +9,7 @@ var __decorateClass = (decorators, target, key, kind) => {
   return result;
 };
 import { IFileDialogService } from "../../../../platform/dialogs/common/dialogs.js";
+import { URI } from "../../../../base/common/uri.js";
 import { InstantiationType, registerSingleton } from "../../../../platform/instantiation/common/extensions.js";
 import { AbstractFileDialogService } from "./abstractFileDialogService.js";
 import { Schemas } from "../../../../base/common/network.js";
@@ -28,6 +29,14 @@ class FileDialogService extends AbstractFileDialogService {
     return this.fileService.getProvider(Schemas.file);
   }
   async pickFileFolderAndOpen(options) {
+    if (typeof window !== "undefined" && window.__tauri_dialogs__) {
+      const folderPath = await window.__tauri_dialogs__.openFolder();
+      if (folderPath) {
+        const uri = URI.file(folderPath);
+        return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: false });
+      }
+      return;
+    }
     const schema = this.getFileSystemSchema(options);
     if (!options.defaultUri) {
       options.defaultUri = await this.defaultFilePath(schema);
@@ -41,6 +50,15 @@ class FileDialogService extends AbstractFileDialogService {
     return schema === Schemas.untitled ? [Schemas.file] : schema !== Schemas.file && (!isFolder || schema !== Schemas.vscodeRemote) ? [schema, Schemas.file] : [schema];
   }
   async pickFileAndOpen(options) {
+    if (typeof window !== "undefined" && window.__tauri_dialogs__) {
+      const filePath = await window.__tauri_dialogs__.openFile();
+      if (filePath) {
+        const uri2 = URI.file(filePath);
+        this.addFileToRecentlyOpened(uri2);
+        await this.openerService.open(uri2, { fromUserGesture: true, editorOptions: { pinned: true } });
+      }
+      return;
+    }
     const schema = this.getFileSystemSchema(options);
     if (!options.defaultUri) {
       options.defaultUri = await this.defaultFilePath(schema);
@@ -66,6 +84,14 @@ class FileDialogService extends AbstractFileDialogService {
     await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
   }
   async pickFolderAndOpen(options) {
+    if (typeof window !== "undefined" && window.__tauri_dialogs__) {
+      const folderPath = await window.__tauri_dialogs__.openFolder();
+      if (folderPath) {
+        const uri = URI.file(folderPath);
+        return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: false });
+      }
+      return;
+    }
     const schema = this.getFileSystemSchema(options);
     if (!options.defaultUri) {
       options.defaultUri = await this.defaultFolderPath(schema);
@@ -87,6 +113,13 @@ class FileDialogService extends AbstractFileDialogService {
     throw new Error(localize("pickWorkspaceAndOpen", "Can't open workspaces, try adding a folder to the workspace instead."));
   }
   async pickFileToSave(defaultUri, availableFileSystems) {
+    if (typeof window !== "undefined" && window.__tauri_dialogs__) {
+      const savePath = await window.__tauri_dialogs__.saveFile(defaultUri?.fsPath);
+      if (savePath) {
+        return URI.file(savePath);
+      }
+      return void 0;
+    }
     const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
     const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
     if (this.shouldUseSimplified(schema)) {

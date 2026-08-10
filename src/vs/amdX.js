@@ -164,7 +164,25 @@ class AMDModuleImporter {
   }
 }
 const cache = /* @__PURE__ */ new Map();
+const xtermModules = {
+  "@xterm/xterm": () => import("@xterm/xterm"),
+  "@xterm/addon-clipboard": () => import("@xterm/addon-clipboard"),
+  "@xterm/addon-image": () => import("@xterm/addon-image"),
+  "@xterm/addon-progress": () => import("@xterm/addon-progress"),
+  "@xterm/addon-search": () => import("@xterm/addon-search"),
+  "@xterm/addon-serialize": () => import("@xterm/addon-serialize"),
+  "@xterm/addon-unicode11": () => import("@xterm/addon-unicode11"),
+  "@xterm/addon-webgl": () => import("@xterm/addon-webgl")
+};
 async function importAMDNodeModule(nodeModuleName, pathInsideNodeModule, isBuilt) {
+  if (xtermModules[nodeModuleName]) {
+    try {
+      const mod = await xtermModules[nodeModuleName]();
+      return mod;
+    } catch (e) {
+      console.warn(`[amdX] Direct import for ${nodeModuleName} fallback:`, e);
+    }
+  }
   if (isBuilt === void 0) {
     const product = globalThis._VSCODE_PRODUCT_JSON;
     isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
