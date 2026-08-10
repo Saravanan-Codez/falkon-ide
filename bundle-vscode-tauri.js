@@ -110,6 +110,14 @@ async function bundleTauriVSCode() {
       fs.unlinkSync('src/dist/all-components.css');
     }
 
+    // Also mirror to out/vs/code/browser/workbench/ for VS Code server
+    fs.mkdirSync('out/vs/code/browser/workbench', { recursive: true });
+    fs.copyFileSync('src/dist/workbench.js', 'out/vs/code/browser/workbench/workbench.js');
+    fs.copyFileSync('src/dist/workbench.css', 'out/vs/code/browser/workbench/workbench.css');
+    if (!fs.existsSync('out/nls.messages.js')) {
+      fs.writeFileSync('out/nls.messages.js', 'export default {};\n');
+    }
+
     const cssStats = fs.statSync('src/dist/workbench.css');
     const jsStats = fs.statSync('src/dist/workbench.js');
     const elapsed = Date.now() - startTime;

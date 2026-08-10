@@ -522,7 +522,7 @@ fn start_node_server() -> Option<std::process::Child> {
     cmd.arg(&server_path_str)
         .arg("--host").arg("127.0.0.1")
         .arg("--port").arg("9888")
-        .arg("--without-connection-token")
+        .arg("--connection-token").arg("falkon-dev-token")
         .arg("--accept-server-license-terms");
 
     match cmd.spawn() {

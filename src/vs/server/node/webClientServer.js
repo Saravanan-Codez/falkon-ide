@@ -369,7 +369,7 @@ let WebClientServer = class {
       "worker-src 'self' data: blob:;",
       "style-src 'self' 'unsafe-inline';",
       "connect-src 'self' ws: wss: https:;",
-      "font-src 'self' blob:;",
+      "font-src 'self' blob: data: https:;",
       "manifest-src 'self';"
     ].join(" ");
     const headers = {

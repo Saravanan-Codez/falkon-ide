@@ -51,14 +51,15 @@
     window.addEventListener('unhandledrejection', (e) => console.error('[VSCode Rejection]', e.reason));
 
     // ── Workspace Provider: handles open folder / default project folder ──
+    const serverAuthority = '127.0.0.1:9888';
     const _folderPath = localStorage.getItem('vscode-tauri-last-folder') || '/home/gt/falkon-labs/Falkon_Dev_Kit';
     const _currentWorkspace = {
       folderUri: {
-        scheme: 'file',
+        scheme: 'vscode-remote',
+        authority: serverAuthority,
         path: (navigator.platform && navigator.platform.startsWith('Win'))
           ? '/' + _folderPath.replace(/\\/g, '/')
           : _folderPath,
-        authority: '',
         query: '',
         fragment: ''
       }
@@ -153,6 +154,8 @@
     try {
       console.log('[VS Code] Initializing workbench on Tauri...');
       const workbench = create(container, {
+        remoteAuthority: serverAuthority,
+        connectionToken: 'falkon-dev-token',
         productConfiguration: {
           nameShort: 'Code - OSS',
           nameLong: 'Visual Studio Code - OSS',
