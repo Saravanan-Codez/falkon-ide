@@ -1,24 +1,29 @@
 import * as esbuild from 'esbuild';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function bundleTauriVSCode() {
-  console.log('Bundling VS Code Workbench for Tauri (entry: web.factory.ts + web.main side-effects)...');
+  console.log('📦 Bundling VS Code Web Workbench for Tauri...');
   const startTime = Date.now();
 
+  // Ensure src/dist directory exists
+  if (!fs.existsSync('src/dist')) {
+    fs.mkdirSync('src/dist', { recursive: true });
+  }
+
   try {
+    // 1. Bundle JavaScript Workbench
+    console.log('   - Bundling workbench.web.main.ts (with all contributions & services)...');
     await esbuild.build({
-      // web.factory.ts exports create() and all other public API
-      // workbench.web.main.ts is a side-effect-only module (registers 100+ services)
-      entryPoints: ['src/vs/workbench/browser/web.factory.ts'],
+      entryPoints: ['src/vs/workbench/workbench.web.main.ts'],
       bundle: true,
       outfile: 'src/dist/workbench.js',
       format: 'esm',
       target: 'es2022',
       platform: 'browser',
       tsconfig: 'tsconfig.json',
-      // Inject workbench.web.main.ts as a side-effect so all services are registered
-      inject: [],
       banner: {
-        js: `// VS Code Web Workbench bundle (Tauri edition)\n// Side-effect imports from workbench.web.main.ts are bundled below via inject\n`,
+        js: `// VS Code Web Workbench bundle (Tauri edition)\n`,
       },
       loader: {
         '.svg': 'dataurl',
@@ -58,7 +63,8 @@ async function bundleTauriVSCode() {
       metafile: false,
     });
 
-    // Also bundle the CSS
+    // 2. Bundle CSS (Workbench style + Codicons font icons)
+    console.log('   - Bundling styles and codicon fonts...');
     await esbuild.build({
       entryPoints: ['src/vs/workbench/browser/media/style.css'],
       bundle: true,
@@ -75,7 +81,7 @@ async function bundleTauriVSCode() {
     });
 
     const elapsed = Date.now() - startTime;
-    console.log(`✅ VS Code Workbench bundled in ${elapsed}ms`);
+    console.log(`✅ VS Code Workbench bundled successfully in ${elapsed}ms!`);
     console.log(`   JS  → src/dist/workbench.js`);
     console.log(`   CSS → src/dist/workbench.css`);
   } catch (err) {

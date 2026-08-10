@@ -16,6 +16,7 @@ use uuid::Uuid;
 // ─────────────────────────────────────────────
 
 struct PtySession {
+    master: Box<dyn portable_pty::MasterPty + Send>,
     writer: Box<dyn std::io::Write + Send>,
     child: Box<dyn portable_pty::Child + Send>,
 }
@@ -223,8 +224,9 @@ fn terminal_create(
     }
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let master = pair.master;
+    let writer = master.take_writer().map_err(|e| e.to_string())?;
+    let mut reader = master.try_clone_reader().map_err(|e| e.to_string())?;
 
     let id_clone = id.clone();
     let window_clone = window.clone();
@@ -244,7 +246,7 @@ fn terminal_create(
         }
     });
 
-    state.lock().unwrap().insert(id.clone(), PtySession { writer, child });
+    state.lock().unwrap().insert(id.clone(), PtySession { master, writer, child });
     Ok(id)
 }
 
@@ -261,12 +263,20 @@ fn terminal_write(state: tauri::State<PtyStore>, id: String, data: String) -> Re
 
 #[tauri::command]
 fn terminal_resize(
-    _state: tauri::State<PtyStore>,
-    _id: String,
-    _cols: u16,
-    _rows: u16,
+    state: tauri::State<PtyStore>,
+    id: String,
+    cols: u16,
+    rows: u16,
 ) -> Result<(), String> {
-    // Full resize requires keeping the master PTY handle — placeholder for now
+    let store = state.lock().unwrap();
+    if let Some(session) = store.get(&id) {
+        let _ = session.master.resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        });
+    }
     Ok(())
 }
 
