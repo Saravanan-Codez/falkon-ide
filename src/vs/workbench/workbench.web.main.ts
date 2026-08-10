@@ -189,4 +189,5 @@ import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
 // Browser View
 import './contrib/browserView/browser/browserView.contribution.js';
 
-//#endregion
+// Tauri: Re-export the public create() API from web.factory
+export { create, commands, logger, env, window, workspace } from './browser/web.factory.js';
