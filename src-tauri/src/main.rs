@@ -22,7 +22,11 @@ fn read_dir(dir_path: String) -> Result<serde_json::Value, String> {
   for entry in entries {
     let e = entry.map_err(|er| er.to_string())?;
     let meta = e.metadata().map_err(|er| er.to_string())?;
-    vec.push(json!({"name": e.file_name().to_string_lossy(), "isDirectory": meta.is_dir()}));
+    vec.push(json!({
+      "name": e.file_name().to_string_lossy(),
+      "isDirectory": meta.is_dir(),
+      "size": meta.len()
+    }));
   }
   Ok(json!(vec))
 }
@@ -30,6 +34,11 @@ fn read_dir(dir_path: String) -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn file_exists(file_path: String) -> bool {
   Path::new(&file_path).exists()
+}
+
+#[tauri::command]
+fn create_dir(dir_path: String) -> Result<bool, String> {
+  fs::create_dir_all(&dir_path).map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -44,7 +53,12 @@ fn create_temp_file(content: String) -> Result<String, String> {
 
 #[tauri::command]
 fn delete_file(file_path: String) -> Result<bool, String> {
-  fs::remove_file(&file_path).map(|_| true).map_err(|e| e.to_string())
+  let path = Path::new(&file_path);
+  if path.is_dir() {
+    fs::remove_dir_all(path).map(|_| true).map_err(|e| e.to_string())
+  } else {
+    fs::remove_file(path).map(|_| true).map_err(|e| e.to_string())
+  }
 }
 
 #[tauri::command]
@@ -108,10 +122,9 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
 fn main() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
-      read_file, write_file, read_dir, file_exists, create_temp_file, delete_file,
+      read_file, write_file, read_dir, file_exists, create_dir, create_temp_file, delete_file,
       git_branch, git_status, git_is_repo, run_falkon, run_cimple
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
-

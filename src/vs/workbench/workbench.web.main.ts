@@ -190,6 +190,3 @@ import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
 import './contrib/browserView/browser/browserView.contribution.js';
 
 //#endregion
-
-export { create } from './browser/web.factory.js';
-

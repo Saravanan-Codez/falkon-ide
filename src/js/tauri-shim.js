@@ -3,7 +3,7 @@
 const ALLOWED_INVOKE_CHANNELS = [
   'open-folder', 'open-file', 'save-file', 'read-file', 'read-dir',
   'write-file', 'file-exists', 'create-temp-file', 'delete-file',
-  'show-open-recent', 'create-file', 'create-folder',
+  'show-open-recent', 'create-file', 'create-folder', 'create-dir',
   'terminal-spawn', 'terminal-write', 'terminal-kill', 'terminal-sigint',
   'git-branch', 'git-status', 'git-is-repo', 'run-cimple', 'run-falkon'
 ];
@@ -39,6 +39,9 @@ window.electronAPI = {
         return tauriInvoke('read_dir', { dirPath: args[0] });
       case 'file-exists':
         return tauriInvoke('file_exists', { filePath: args[0] });
+      case 'create-folder':
+      case 'create-dir':
+        return tauriInvoke('create_dir', { dirPath: args[0] });
       case 'create-temp-file':
         return tauriInvoke('create_temp_file', { content: args[0] || '' });
       case 'delete-file':
