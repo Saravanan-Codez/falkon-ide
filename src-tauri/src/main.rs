@@ -469,6 +469,74 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
     run_falkon(entry, options)
 }
 
+#[tauri::command]
+fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_toggle_maximize(window: tauri::Window) -> Result<bool, String> {
+    let is_max = window.is_maximized().map_err(|e| e.to_string())?;
+    if is_max {
+        window.unmaximize().map_err(|e| e.to_string())?;
+        Ok(false)
+    } else {
+        window.maximize().map_err(|e| e.to_string())?;
+        Ok(true)
+    }
+}
+
+#[tauri::command]
+fn window_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_server_authority() -> String {
+    "127.0.0.1:9888".to_string()
+}
+
+// ─────────────────────────────────────────────
+//  Node.js Extension Host Sidecar Supervisor
+// ─────────────────────────────────────────────
+
+struct ServerManager {
+    #[allow(dead_code)]
+    child: Mutex<Option<std::process::Child>>,
+}
+
+fn start_node_server() -> Option<std::process::Child> {
+    let node_cmd = if cfg!(windows) { "node.exe" } else { "node" };
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+    let mut server_path = std::path::PathBuf::from(&manifest_dir);
+    if server_path.ends_with("src-tauri") {
+        server_path.pop();
+    }
+    server_path.push("src");
+    server_path.push("server-main.js");
+
+    let server_path_str = server_path.to_string_lossy().to_string();
+    println!("[Falkon] Starting Node.js Extension Host sidecar: {}", server_path_str);
+
+    let mut cmd = Command::new(node_cmd);
+    cmd.arg(&server_path_str)
+        .arg("--host").arg("127.0.0.1")
+        .arg("--port").arg("9888")
+        .arg("--without-connection-token")
+        .arg("--accept-server-license-terms");
+
+    match cmd.spawn() {
+        Ok(child) => {
+            println!("[Falkon] Node.js Extension Host sidecar spawned with PID: {}", child.id());
+            Some(child)
+        }
+        Err(e) => {
+            eprintln!("[Falkon] Warning: Could not spawn Node.js sidecar automatically: {}", e);
+            None
+        }
+    }
+}
+
 // ─────────────────────────────────────────────
 //  Main
 // ─────────────────────────────────────────────
@@ -476,22 +544,49 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
 fn main() {
     #[cfg(target_os = "linux")]
     {
-        // Avoid DRI2 / EGL driver warnings on Linux
+        // Sanitize environment variables that may leak outdated Snap glibc / libpthread libraries
+        let vars_to_clean = ["LD_LIBRARY_PATH", "GTK_PATH", "GIO_MODULE_DIR", "GIO_MODULE_PATH", "GSETTINGS_SCHEMA_DIR"];
+        for var in &vars_to_clean {
+            if let Ok(val) = std::env::var(var) {
+                let cleaned: Vec<&str> = val
+                    .split(':')
+                    .filter(|p| !p.contains("/snap/core") && !p.contains("/snap/"))
+                    .filter(|p| !p.trim().is_empty())
+                    .collect();
+                if cleaned.is_empty() {
+                    std::env::remove_var(var);
+                } else {
+                    std::env::set_var(var, cleaned.join(":"));
+                }
+            }
+        }
+
+        // Avoid DRI2 / EGL driver crashes and WebKitGTK bugs on Linux
         if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        if std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
         }
     }
 
     let pty_store: PtyStore = Mutex::new(HashMap::new());
+    let server_manager = ServerManager {
+        child: Mutex::new(start_node_server()),
+    };
 
     tauri::Builder::default()
         .manage(pty_store)
+        .manage(server_manager)
         .invoke_handler(tauri::generate_handler![
+            get_server_authority,
             // File system
             read_file, write_file, read_dir, stat_file, file_exists,
             create_dir, rename_file, create_temp_file, delete_file,
             // File dialogs
             open_folder_dialog, open_file_dialog, save_file_dialog,
+            // Window controls
+            window_minimize, window_toggle_maximize, window_close,
             // Settings
             read_settings, write_settings, read_keybindings,
             // Terminal

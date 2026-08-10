@@ -12,6 +12,7 @@ const IGNORED_DIRS = new Set([
   'electron-sandbox',
   'electron-utility',
   'electron-sandbox-preload',
+  'extensions',
 ]);
 
 function findTsFiles(dir, fileList = []) {
@@ -32,8 +33,8 @@ function findTsFiles(dir, fileList = []) {
 }
 
 async function buildVSCode() {
-  console.log('⚡ Transpiling VS Code browser & workbench modules...');
-  const files = findTsFiles('src/vs');
+  console.log('⚡ Transpiling VS Code browser, server & workbench modules...');
+  const files = findTsFiles('src');
 
   const startTime = Date.now();
   try {

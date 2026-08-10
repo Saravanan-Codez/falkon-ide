@@ -117,6 +117,16 @@ window.__tauri_settings__ = {
 };
 
 // ─────────────────────────────────────────────
+//  Window Controls
+// ─────────────────────────────────────────────
+
+window.__tauri_window__ = {
+  minimize: () => invoke('window_minimize', {}),
+  toggleMaximize: () => invoke('window_toggle_maximize', {}),
+  close: () => invoke('window_close', {}),
+};
+
+// ─────────────────────────────────────────────
 //  Legacy electronAPI shim (for any remaining calls)
 // ─────────────────────────────────────────────
 
