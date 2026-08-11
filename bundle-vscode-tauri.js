@@ -28,9 +28,9 @@ async function bundleTauriVSCode() {
 
   try {
     // 1. Bundle JavaScript Workbench
-    console.log('   - Bundling workbench.web.main.ts...');
+    console.log('   - Bundling workbench.ts (browser launcher)...');
     await esbuild.build({
-      entryPoints: ['src/vs/workbench/workbench.web.main.ts'],
+      entryPoints: ['src/vs/code/browser/workbench/workbench.ts'],
       bundle: true,
       outfile: 'src/dist/workbench.js',
       format: 'esm',
