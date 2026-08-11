@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::Emitter;
+use tauri::Manager;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
@@ -554,8 +555,6 @@ fn find_server_script() -> Option<std::path::PathBuf> {
             if p.ends_with("src-tauri") { p.pop(); }
             p.join("src").join("server-main.js")
         }),
-        // 4. Standard dev path
-        Some(std::path::PathBuf::from("/home/gt/falkon-labs/Falkon_Dev_Kit/src/server-main.js")),
     ];
 
     for candidate in candidates.into_iter().flatten() {
@@ -652,6 +651,20 @@ fn main() {
     tauri::Builder::default()
         .manage(pty_store)
         .manage(server_manager)
+        .on_page_load(move |webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                if let Ok(mut lock) = pending_uri_clone.lock() {
+                    if let Some(uri) = lock.take() {
+                        let escaped = uri.replace('\\', "\\\\").replace('"', "\\\"");
+                        let js = format!(
+                            r#"if (window.__falkon_handle_uri) {{ window.__falkon_handle_uri("{escaped}"); }}"#,
+                            escaped = escaped
+                        );
+                        let _ = webview.eval(&js);
+                    }
+                }
+            }
+        })
         // Inject the initialization script into the Tauri WebView.
         // This script runs on every page load inside the WebView, including
         // the VS Code workbench served from http://127.0.0.1:9888.
@@ -670,21 +683,6 @@ fn main() {
             // Tauri captures this and emits a "deep-link" event.
             // We forward that URI to the workbench via JavaScript eval.
             let wv_clone = webview_window.clone();
-            let pending = pending_uri_clone.clone();
-            webview_window.on_page_load(move |wv, _payload| {
-                // When a page finishes loading, drain any pending deep-link URI
-                // and inject it into the page via the __falkon_handle_uri bridge.
-                if let Ok(mut lock) = pending.lock() {
-                    if let Some(uri) = lock.take() {
-                        let escaped = uri.replace('\\', "\\\\").replace('"', "\\\"");
-                        let js = format!(
-                            r#"if (window.__falkon_handle_uri) {{ window.__falkon_handle_uri("{escaped}"); }}"#,
-                            escaped = escaped
-                        );
-                        let _ = wv.eval(&js);
-                    }
-                }
-            });
             let _ = wv_clone; // keep reference
             Ok(())
         })

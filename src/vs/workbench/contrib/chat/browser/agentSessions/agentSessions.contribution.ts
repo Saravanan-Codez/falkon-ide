@@ -21,6 +21,11 @@ import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissi
 import './agentHost/agentHostChatInputPicker.contribution.js';
 import './agentHost/agentHostModeSynchronizer.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { OpenWorkspaceInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution } from '../../electron-browser/agentSessions/agentSessionsActions.js';
+
+registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
+registerAction2(OpenWorkspaceInAgentsWindowAction);
+registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.AfterRestored);
 
 //#region Actions and Menus
 

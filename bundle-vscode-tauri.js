@@ -124,7 +124,7 @@ async function bundleTauriVSCode() {
 
     // Generate combined CSS with relative imports
     const combinedCss = allCssFiles
-      .map(file => `@import "${path.resolve(file)}";`)
+      .map(file => `@import "${path.resolve(file).replace(/\\/g, '/')}";`)
       .join('\n');
     fs.writeFileSync('src/dist/all-components.css', combinedCss);
 
@@ -162,6 +162,44 @@ async function bundleTauriVSCode() {
     }
     if (!fs.existsSync('src/nls.messages.json')) {
       fs.writeFileSync('src/nls.messages.json', '{}\n');
+    }
+
+    // Mirror necessary runtime assets and fallback stubs for cross-platform VS Code Workbench
+    const keyboardLayoutsDir = 'out/vs/workbench/services/keybinding/browser/keyboardLayouts';
+    fs.mkdirSync(keyboardLayoutsDir, { recursive: true });
+    for (const plat of ['win', 'linux', 'darwin']) {
+      const file = `${keyboardLayoutsDir}/layout.contribution.${plat}.js`;
+      if (!fs.existsSync(file)) {
+        fs.writeFileSync(file, '// Keyboard layout contribution stub for Tauri VS Code\nexport const layout = {};\n');
+      }
+    }
+
+    const workerExtDir = 'out/vs/workbench/services/extensions/worker';
+    fs.mkdirSync(workerExtDir, { recursive: true });
+    if (!fs.existsSync(`${workerExtDir}/webWorkerExtensionHostIframe.html`)) {
+      fs.writeFileSync(
+        `${workerExtDir}/webWorkerExtensionHostIframe.html`,
+        '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>// Extension Host Worker Iframe</script></body></html>\n'
+      );
+    }
+
+    const editorWorkerDir = 'out/vs/editor/common/services';
+    fs.mkdirSync(editorWorkerDir, { recursive: true });
+    if (!fs.existsSync(`${editorWorkerDir}/editorWebWorkerMain.js`)) {
+      fs.writeFileSync(
+        `${editorWorkerDir}/editorWebWorkerMain.js`,
+        '// Editor Web Worker main entry stub\nself.onmessage = function() {};\n'
+      );
+    }
+
+    // VSDA stubs to prevent 404 log noise in extension host
+    const vsdaDir = 'node_modules/vsda/rust/web';
+    fs.mkdirSync(vsdaDir, { recursive: true });
+    if (!fs.existsSync(`${vsdaDir}/vsda.js`)) {
+      fs.writeFileSync(`${vsdaDir}/vsda.js`, 'export default function init() { return Promise.resolve(); }\nexport class signer { sign() { return ""; } }\nexport class validator { validate() { return true; } }\n');
+    }
+    if (!fs.existsSync(`${vsdaDir}/vsda_bg.wasm`)) {
+      fs.writeFileSync(`${vsdaDir}/vsda_bg.wasm`, Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]));
     }
 
     const cssStats = fs.statSync('src/dist/workbench.css');

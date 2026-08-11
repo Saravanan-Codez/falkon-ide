@@ -10,8 +10,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "npm run bundle-vs && env -u LD_LIBRARY_PATH -u GTK_PATH npx tauri dev",
-    "build": "npm run bundle-vs && env -u LD_LIBRARY_PATH -u GTK_PATH npx tauri build",
+    "dev": "npm run bundle-vs && node run-tauri.js dev",
+    "build": "npm run bundle-vs && node run-tauri.js build",
+    "sync-upstream": "node scripts/sync-upstream.js",
     "bundle-vs": "node build/build-all-extensions.mjs && node bundle-vscode-tauri.js",
     "unit-test": "node --test tests/*.test.js",
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",

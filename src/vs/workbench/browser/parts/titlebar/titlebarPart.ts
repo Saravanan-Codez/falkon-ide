@@ -542,43 +542,63 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.windowControlsContainer = append(this.rootContainer, $('div.window-controls-container'));
 		this.windowControlsContainer.style.cssText = 'display: flex !important; flex-direction: row !important; align-items: center !important; height: 100% !important; width: 138px !important; min-width: 138px !important; max-width: 138px !important; flex: 0 0 138px !important; order: 3 !important; -webkit-app-region: no-drag !important; z-index: 3500 !important;';
 
+		const invokeWinControl = (actionName: string) => {
+			const win = window as any;
+			if (win.__tauri_window__ && typeof win.__tauri_window__[actionName] === 'function') {
+				win.__tauri_window__[actionName]();
+				return;
+			}
+			const cmdMap: Record<string, string> = {
+				minimize: 'window_minimize',
+				toggleMaximize: 'window_toggle_maximize',
+				close: 'window_close'
+			};
+			const cmd = cmdMap[actionName] || actionName;
+			const tauri = win.__TAURI__ || (globalThis as any).__TAURI__;
+			if (tauri?.core?.invoke) {
+				tauri.core.invoke(cmd).catch(console.error);
+				return;
+			}
+			if (win.__TAURI_INTERNALS__?.invoke) {
+				win.__TAURI_INTERNALS__.invoke(cmd).catch(console.error);
+				return;
+			}
+		};
+
 		// Minimize
 		const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize'));
 		minimizeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMinimize));
 		minimizeIcon.title = 'Minimize';
-		minimizeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important;';
+		minimizeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; transition: background-color 0.15s ease;';
+		this._register(addDisposableListener(minimizeIcon, EventType.MOUSE_OVER, () => minimizeIcon.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'));
+		this._register(addDisposableListener(minimizeIcon, EventType.MOUSE_OUT, () => minimizeIcon.style.backgroundColor = 'transparent'));
 		this._register(addDisposableListener(minimizeIcon, EventType.CLICK, (e) => {
 			EventHelper.stop(e, true);
-			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
-			if (tauri?.core?.invoke) {
-				tauri.core.invoke('window_minimize').catch(console.error);
-			}
+			invokeWinControl('minimize');
 		}));
 
 		// Maximize / Restore
 		const maxRestoreIcon = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
 		maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
 		maxRestoreIcon.title = 'Maximize';
-		maxRestoreIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important;';
+		maxRestoreIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; transition: background-color 0.15s ease;';
+		this._register(addDisposableListener(maxRestoreIcon, EventType.MOUSE_OVER, () => maxRestoreIcon.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'));
+		this._register(addDisposableListener(maxRestoreIcon, EventType.MOUSE_OUT, () => maxRestoreIcon.style.backgroundColor = 'transparent'));
 		this._register(addDisposableListener(maxRestoreIcon, EventType.CLICK, (e) => {
 			EventHelper.stop(e, true);
-			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
-			if (tauri?.core?.invoke) {
-				tauri.core.invoke('window_toggle_maximize').catch(console.error);
-			}
+			invokeWinControl('toggleMaximize');
 		}));
 
 		// Close
 		const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close'));
 		closeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeClose));
 		closeIcon.title = 'Close';
-		closeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important;';
+		closeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; transition: background-color 0.15s ease, color 0.15s ease;';
+		this._register(addDisposableListener(closeIcon, EventType.MOUSE_OVER, () => { closeIcon.style.backgroundColor = '#e81123'; closeIcon.style.color = '#ffffff'; }));
+		this._register(addDisposableListener(closeIcon, EventType.MOUSE_OUT, () => { closeIcon.style.backgroundColor = 'transparent'; closeIcon.style.color = '#cccccc'; }));
 		this._register(addDisposableListener(closeIcon, EventType.CLICK, (e) => {
 			EventHelper.stop(e, true);
-			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
-			if (tauri?.core?.invoke) {
-				tauri.core.invoke('window_close').catch(console.error);
-			}
+			invokeWinControl('close');
 		}));
 
 		// Context menu over title bar: depending on the OS and the location of the click this will either be

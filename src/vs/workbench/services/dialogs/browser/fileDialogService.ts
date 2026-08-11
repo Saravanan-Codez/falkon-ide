@@ -338,6 +338,4 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 import { TauriFileDialogService } from './tauriFileDialogService.js';
 
-const SelectedFileDialogService = ((globalThis as any).__tauri_dialogs__ || (typeof window !== 'undefined' && (window as any).__tauri_dialogs__)) ? TauriFileDialogService : FileDialogService;
-
-registerSingleton(IFileDialogService, SelectedFileDialogService, InstantiationType.Delayed);
+registerSingleton(IFileDialogService, TauriFileDialogService, InstantiationType.Delayed);

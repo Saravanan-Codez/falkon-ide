@@ -168,3 +168,17 @@ console.log('[Tauri Shim] All IPC bridges registered:', {
   git: !!window.__tauri_git__,
   settings: !!window.__tauri_settings__,
 });
+
+// ─────────────────────────────────────────────
+//  Desktop App Event Behaviors
+// ─────────────────────────────────────────────
+
+// Prevent browser navigation when files are dropped onto the app
+window.addEventListener('dragover', (e) => e.preventDefault(), false);
+window.addEventListener('drop', (e) => {
+  const tag = e.target?.tagName?.toLowerCase();
+  if (tag !== 'input' && tag !== 'textarea') {
+    e.preventDefault();
+  }
+}, false);
+

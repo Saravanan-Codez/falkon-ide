@@ -11,7 +11,25 @@ import { Schemas } from '../../../../base/common/network.js';
 export class TauriFileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
 	private get tauriDialogs(): any {
-		return (globalThis as any).__tauri_dialogs__ || (window as any).__tauri_dialogs__;
+		const win = window as any;
+		if (win.__tauri_dialogs__) {
+			return win.__tauri_dialogs__;
+		}
+		if ((globalThis as any).__tauri_dialogs__) {
+			return (globalThis as any).__tauri_dialogs__;
+		}
+		if (win.__TAURI__?.core?.invoke || win.__TAURI_INTERNALS__?.invoke) {
+			const invoke = (cmd: string, args?: any) => {
+				if (win.__TAURI__?.core?.invoke) return win.__TAURI__.core.invoke(cmd, args);
+				return win.__TAURI_INTERNALS__.invoke(cmd, args);
+			};
+			return {
+				openFolder: () => invoke('open_folder_dialog', {}),
+				openFile: (filters?: any) => invoke('open_file_dialog', { filters: filters ?? [] }),
+				saveFile: (defaultName?: any) => invoke('save_file_dialog', { defaultName: defaultName ?? null })
+			};
+		}
+		return undefined;
 	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
