@@ -87,6 +87,8 @@ else {
 			licenseName: 'MIT',
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+			builtInExtensionsEnabledWithAutoUpdates: [],
+			builtInExtensions: [],
 			defaultChatAgent: {
 				extensionId: 'GitHub.copilot',
 				chatExtensionId: 'GitHub.copilot-chat',

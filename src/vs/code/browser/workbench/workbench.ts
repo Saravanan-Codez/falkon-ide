@@ -618,6 +618,18 @@ function readCookie(name: string): string | undefined {
 	// Create workbench
 	create(mainWindow.document.body, {
 		...config,
+		configurationDefaults: {
+			'workbench.colorTheme': 'Default Dark Modern',
+			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+			'window.titleBarStyle': 'custom',
+			'window.customTitleBarVisibility': 'always',
+			'window.menuBarVisibility': 'classic',
+			'window.commandCenter': true,
+			'security.workspace.trust.enabled': false,
+			'chat.titleBar.openInAgentsWindow.enabled': true,
+			'chat.commandCenter.enabled': true,
+			...config.configurationDefaults
+		},
 		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),

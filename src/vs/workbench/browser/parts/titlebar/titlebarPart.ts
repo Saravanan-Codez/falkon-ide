@@ -38,6 +38,8 @@ import { AccountsActivityActionViewItem, isAccountsActionVisible, SimpleAccountA
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from '../editor/editorCommands.js';
@@ -479,21 +481,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
-		// App Icon (Windows, Linux)
-		if ((isWindows || isLinux) && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
-			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
-		}
+		// App Icon (Windows, Linux, and Desktop)
+		this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
 
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
-		// Menubar: install a custom menu bar depending on configuration
-		if (
-			!this.isAuxiliary &&
-			!hasNativeMenu(this.configurationService, this.titleBarStyle) &&
-			(!isMacintosh || isWeb) &&
-			this.currentMenubarVisibility !== 'compact'
-		) {
+		// Menubar: install a custom menu bar
+		if (!this.isAuxiliary) {
 			this.installMenubar();
 		}
 
@@ -543,41 +538,50 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
-		// Window Controls Container
-		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
-			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
-			if (isMacintosh && isNative) {
+		// Window Controls Container (Minimize, Maximize/Restore, Close)
+		this.windowControlsContainer = append(this.rightContent, $('div.window-controls-container'));
 
-				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
-				// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
-
-				const localeInfo = safeIntl.Locale(platformLocale).value;
-				const textInfo = (localeInfo as { textInfo?: unknown }).textInfo;
-				if (textInfo && typeof textInfo === 'object' && 'direction' in textInfo && textInfo.direction === 'rtl') {
-					primaryWindowControlsLocation = 'right';
-				}
+		// Minimize
+		const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize'));
+		minimizeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMinimize));
+		minimizeIcon.title = 'Minimize';
+		this._register(addDisposableListener(minimizeIcon, EventType.CLICK, (e) => {
+			EventHelper.stop(e, true);
+			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
+			if (tauri?.core?.invoke) {
+				tauri.core.invoke('window_minimize');
+			} else if ((window as any).__tauri_window__?.minimize) {
+				(window as any).__tauri_window__.minimize();
 			}
+		}));
 
-			if (isMacintosh && isNative && primaryWindowControlsLocation === 'left') {
-				// macOS native: controls are on the left and the container is not needed to make room
-				// for something, except for web where a custom menu being supported). not putting the
-				// container helps with allowing to move the window when clicking very close to the
-				// window control buttons.
-			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
-				// Linux/Windows: controls are explicitly disabled
-			} else {
-				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (isWeb) {
-					// Web: its possible to have control overlays on both sides, for example on macOS
-					// with window controls on the left and PWA controls on the right.
-					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-				}
-
-				if (isWCOEnabled()) {
-					this.windowControlsContainer.classList.add('wco-enabled');
-				}
+		// Maximize / Restore
+		const maxRestoreIcon = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
+		maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+		maxRestoreIcon.title = 'Maximize';
+		this._register(addDisposableListener(maxRestoreIcon, EventType.CLICK, (e) => {
+			EventHelper.stop(e, true);
+			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
+			if (tauri?.core?.invoke) {
+				tauri.core.invoke('window_toggle_maximize');
+			} else if ((window as any).__tauri_window__?.toggleMaximize) {
+				(window as any).__tauri_window__.toggleMaximize();
 			}
-		}
+		}));
+
+		// Close
+		const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close'));
+		closeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeClose));
+		closeIcon.title = 'Close';
+		this._register(addDisposableListener(closeIcon, EventType.CLICK, (e) => {
+			EventHelper.stop(e, true);
+			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
+			if (tauri?.core?.invoke) {
+				tauri.core.invoke('window_close');
+			} else if ((window as any).__tauri_window__?.close) {
+				(window as any).__tauri_window__.close();
+			}
+		}));
 
 		// Context menu over title bar: depending on the OS and the location of the click this will either be
 		// the overall context menu for the entire title bar or a specific title context menu.
@@ -891,7 +895,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			return 'hidden';
 		}
 
-		return getMenuBarVisibility(this.configurationService);
+		const val = getMenuBarVisibility(this.configurationService);
+		return (val === 'default' || val === 'compact') ? 'classic' : val;
 	}
 
 	private get layoutControlEnabled(): boolean {

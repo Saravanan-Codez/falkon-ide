@@ -101,12 +101,13 @@ export class MenuBar extends Disposable {
 		this.menus = [];
 		this.mnemonics = new Map<string, number>();
 
-		this._focusState = MenubarState.VISIBLE;
+		this._focusState = MenubarState.HIDDEN;
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		this.createOverflowMenu();
+		this.showMenubar();
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.update(), 200));
 
@@ -674,6 +675,9 @@ export class MenuBar extends Disposable {
 		}
 
 		if (value === this._focusState) {
+			if (value === MenubarState.VISIBLE && this.container.style.display !== 'flex') {
+				this.showMenubar();
+			}
 			return;
 		}
 
@@ -685,9 +689,7 @@ export class MenuBar extends Disposable {
 
 		switch (value) {
 			case MenubarState.HIDDEN:
-				if (isVisible) {
-					this.hideMenubar();
-				}
+				this.hideMenubar();
 
 				if (isOpen) {
 					this.cleanupCustomMenu();
@@ -705,9 +707,7 @@ export class MenuBar extends Disposable {
 
 				break;
 			case MenubarState.VISIBLE:
-				if (!isVisible) {
-					this.showMenubar();
-				}
+				this.showMenubar();
 
 				if (isOpen) {
 					this.cleanupCustomMenu();
@@ -792,8 +792,6 @@ export class MenuBar extends Disposable {
 
 	private setUnfocusedState(): void {
 		if (this.options.visibility === 'toggle' || this.options.visibility === 'hidden') {
-			this.focusState = MenubarState.HIDDEN;
-		} else if (this.options.visibility === 'classic' && browser.isFullscreen(mainWindow)) {
 			this.focusState = MenubarState.HIDDEN;
 		} else {
 			this.focusState = MenubarState.VISIBLE;
