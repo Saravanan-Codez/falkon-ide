@@ -10,12 +10,10 @@ delete env.GTK_PATH;
 console.log(`🚀 Starting Tauri in ${action} mode...`);
 
 const isWin = process.platform === 'win32';
-const command = isWin ? 'npx.cmd' : 'npx';
 
-const child = spawn(command, ['tauri', action], { 
-  stdio: 'inherit', 
-  env 
-});
+const child = isWin
+  ? spawn('npx.cmd', ['tauri', action], { stdio: 'inherit', env, shell: true })
+  : spawn('npx', ['tauri', action], { stdio: 'inherit', env });
 
 child.on('exit', (code) => {
   process.exit(code || 0);
