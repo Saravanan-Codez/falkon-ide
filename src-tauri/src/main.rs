@@ -471,25 +471,35 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
 }
 
 #[tauri::command]
-fn window_minimize(window: tauri::Window) -> Result<(), String> {
-    window.minimize().map_err(|e| e.to_string())
+fn window_minimize(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.minimize().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
-fn window_toggle_maximize(window: tauri::Window) -> Result<bool, String> {
-    let is_max = window.is_maximized().map_err(|e| e.to_string())?;
-    if is_max {
-        window.unmaximize().map_err(|e| e.to_string())?;
-        Ok(false)
+fn window_toggle_maximize(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let is_max = window.is_maximized().map_err(|e| e.to_string())?;
+        if is_max {
+            window.unmaximize().map_err(|e| e.to_string())?;
+            Ok(false)
+        } else {
+            window.maximize().map_err(|e| e.to_string())?;
+            Ok(true)
+        }
     } else {
-        window.maximize().map_err(|e| e.to_string())?;
-        Ok(true)
+        Ok(false)
     }
 }
 
 #[tauri::command]
-fn window_close(window: tauri::Window) -> Result<(), String> {
-    window.close().map_err(|e| e.to_string())
+fn window_close(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

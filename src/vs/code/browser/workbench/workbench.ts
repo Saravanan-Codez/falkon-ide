@@ -479,8 +479,10 @@ class WorkspaceProvider implements IWorkspaceProvider {
 						// that is a path (begins with a `/`), assume this
 						// is a vscode-remote resource as simplified URL.
 						workspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
-					} else {
+					} else if (value.startsWith('file:')) {
 						workspace = { folderUri: URI.parse(value) };
+					} else {
+						workspace = { folderUri: URI.file(value) };
 					}
 					foundWorkspace = true;
 					break;
@@ -492,8 +494,10 @@ class WorkspaceProvider implements IWorkspaceProvider {
 						// that is a path (begins with a `/`), assume this
 						// is a vscode-remote resource as simplified URL.
 						workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
-					} else {
+					} else if (value.startsWith('file:')) {
 						workspace = { workspaceUri: URI.parse(value) };
+					} else {
+						workspace = { workspaceUri: URI.file(value) };
 					}
 					foundWorkspace = true;
 					break;
@@ -603,7 +607,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			return encodeURIComponent(`${posix.sep}${ltrim(uri.path, posix.sep)}`).replaceAll('%2F', '/');
 		}
 
-		return encodeURIComponent(uri.toString(true));
+		return encodeURIComponent(uri.scheme === 'file' ? (uri.fsPath || uri.path) : uri.toString(true));
 	}
 
 	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
@@ -672,6 +676,7 @@ function readCookie(name: string): string | undefined {
 			'window.customTitleBarVisibility': 'always',
 			'window.menuBarVisibility': 'classic',
 			'window.commandCenter': true,
+			'workbench.navigationControl.enabled': true,
 			'security.workspace.trust.enabled': false,
 			'chat.titleBar.openInAgentsWindow.enabled': true,
 			'chat.commandCenter.enabled': true,

@@ -540,7 +540,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Window Controls Container (Minimize, Maximize/Restore, Close)
 		this.windowControlsContainer = append(this.rootContainer, $('div.window-controls-container'));
-		this.windowControlsContainer.style.cssText = 'display: flex !important; flex-direction: row !important; align-items: center !important; height: 100% !important; width: 138px !important; min-width: 138px !important; max-width: 138px !important; flex: 0 0 138px !important; order: 3 !important; -webkit-app-region: no-drag !important; z-index: 3500 !important;';
+		this.windowControlsContainer.style.cssText = 'display: flex !important; flex-direction: row !important; align-items: center !important; height: 100% !important; width: 138px !important; min-width: 138px !important; max-width: 138px !important; flex: 0 0 138px !important; order: 3 !important; -webkit-app-region: no-drag !important; pointer-events: auto !important; position: relative !important; z-index: 10000 !important;';
 
 		const invokeWinControl = (actionName: string) => {
 			const win = window as any;
@@ -565,41 +565,41 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 		};
 
+		const bindControl = (element: HTMLElement, actionName: string, hoverBg: string, hoverColor?: string) => {
+			element.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; pointer-events: auto !important; position: relative !important; z-index: 10001 !important; transition: background-color 0.15s ease, color 0.15s ease;';
+			this._register(addDisposableListener(element, EventType.MOUSE_OVER, () => {
+				element.style.backgroundColor = hoverBg;
+				if (hoverColor) element.style.color = hoverColor;
+			}));
+			this._register(addDisposableListener(element, EventType.MOUSE_OUT, () => {
+				element.style.backgroundColor = 'transparent';
+				element.style.color = '#cccccc';
+			}));
+			const handler = (e: Event) => {
+				EventHelper.stop(e, true);
+				invokeWinControl(actionName);
+			};
+			this._register(addDisposableListener(element, EventType.CLICK, handler));
+			this._register(addDisposableListener(element, EventType.MOUSE_DOWN, handler));
+		};
+
 		// Minimize
 		const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize'));
 		minimizeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMinimize));
 		minimizeIcon.title = 'Minimize';
-		minimizeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; transition: background-color 0.15s ease;';
-		this._register(addDisposableListener(minimizeIcon, EventType.MOUSE_OVER, () => minimizeIcon.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'));
-		this._register(addDisposableListener(minimizeIcon, EventType.MOUSE_OUT, () => minimizeIcon.style.backgroundColor = 'transparent'));
-		this._register(addDisposableListener(minimizeIcon, EventType.CLICK, (e) => {
-			EventHelper.stop(e, true);
-			invokeWinControl('minimize');
-		}));
+		bindControl(minimizeIcon, 'minimize', 'rgba(255, 255, 255, 0.1)');
 
 		// Maximize / Restore
 		const maxRestoreIcon = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
 		maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
 		maxRestoreIcon.title = 'Maximize';
-		maxRestoreIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; transition: background-color 0.15s ease;';
-		this._register(addDisposableListener(maxRestoreIcon, EventType.MOUSE_OVER, () => maxRestoreIcon.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'));
-		this._register(addDisposableListener(maxRestoreIcon, EventType.MOUSE_OUT, () => maxRestoreIcon.style.backgroundColor = 'transparent'));
-		this._register(addDisposableListener(maxRestoreIcon, EventType.CLICK, (e) => {
-			EventHelper.stop(e, true);
-			invokeWinControl('toggleMaximize');
-		}));
+		bindControl(maxRestoreIcon, 'toggleMaximize', 'rgba(255, 255, 255, 0.1)');
 
 		// Close
 		const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close'));
 		closeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeClose));
 		closeIcon.title = 'Close';
-		closeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; transition: background-color 0.15s ease, color 0.15s ease;';
-		this._register(addDisposableListener(closeIcon, EventType.MOUSE_OVER, () => { closeIcon.style.backgroundColor = '#e81123'; closeIcon.style.color = '#ffffff'; }));
-		this._register(addDisposableListener(closeIcon, EventType.MOUSE_OUT, () => { closeIcon.style.backgroundColor = 'transparent'; closeIcon.style.color = '#cccccc'; }));
-		this._register(addDisposableListener(closeIcon, EventType.CLICK, (e) => {
-			EventHelper.stop(e, true);
-			invokeWinControl('close');
-		}));
+		bindControl(closeIcon, 'close', '#e81123', '#ffffff');
 
 		// Context menu over title bar: depending on the OS and the location of the click this will either be
 		// the overall context menu for the entire title bar or a specific title context menu.

@@ -9,10 +9,11 @@
  *  4. Exposes window.__vscode_tauri_bridge__ for the workbench init script
  */
 
-const tauri = () => window.__TAURI__?.core;
 const invoke = (cmd, args) => {
-  const t = tauri();
-  if (t?.invoke) return t.invoke(cmd, args);
+  const win = window;
+  if (win.__TAURI__?.core?.invoke) return win.__TAURI__.core.invoke(cmd, args);
+  if (win.__TAURI_INTERNALS__?.invoke) return win.__TAURI_INTERNALS__.invoke(cmd, args);
+  if (win.__TAURI_INVOKE__) return win.__TAURI_INVOKE__(cmd, args);
   console.warn(`[Tauri] invoke not ready for: ${cmd}`);
   return Promise.resolve(null);
 };
