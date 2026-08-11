@@ -539,12 +539,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Window Controls Container (Minimize, Maximize/Restore, Close)
-		this.windowControlsContainer = append(this.rightContent, $('div.window-controls-container'));
+		this.windowControlsContainer = append(this.rootContainer, $('div.window-controls-container'));
+		this.windowControlsContainer.style.cssText = 'display: flex !important; flex-direction: row !important; align-items: center !important; height: 100% !important; width: 138px !important; min-width: 138px !important; max-width: 138px !important; flex: 0 0 138px !important; order: 3 !important; -webkit-app-region: no-drag !important; z-index: 3500 !important;';
 
 		// Minimize
 		const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize'));
 		minimizeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMinimize));
 		minimizeIcon.title = 'Minimize';
+		minimizeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important;';
 		this._register(addDisposableListener(minimizeIcon, EventType.CLICK, (e) => {
 			EventHelper.stop(e, true);
 			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
@@ -559,6 +561,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const maxRestoreIcon = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
 		maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
 		maxRestoreIcon.title = 'Maximize';
+		maxRestoreIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important;';
 		this._register(addDisposableListener(maxRestoreIcon, EventType.CLICK, (e) => {
 			EventHelper.stop(e, true);
 			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
@@ -573,6 +576,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close'));
 		closeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeClose));
 		closeIcon.title = 'Close';
+		closeIcon.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important;';
 		this._register(addDisposableListener(closeIcon, EventType.CLICK, (e) => {
 			EventHelper.stop(e, true);
 			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;

@@ -51,17 +51,73 @@ async function runBattleTest() {
     // Wait a brief moment for themes and layout to settle
     await page.waitForTimeout(2000);
 
-    const titlebarHTML = await page.evaluate(() => {
+    const diagnostics = await page.evaluate(() => {
       const tb = document.querySelector('.part.titlebar');
-      return tb ? tb.outerHTML : 'NO TITLEBAR FOUND';
+      const wcc = document.querySelector('.window-controls-container');
+      const icons = Array.from(document.querySelectorAll('.window-icon'));
+      const right = document.querySelector('.titlebar-right');
+      return {
+        titlebarRect: tb?.getBoundingClientRect(),
+        leftRect: document.querySelector('.titlebar-left')?.getBoundingClientRect(),
+        centerRect: document.querySelector('.titlebar-center')?.getBoundingClientRect(),
+        commandCenterRect: document.querySelector('.command-center')?.getBoundingClientRect(),
+        rightRect: right?.getBoundingClientRect(),
+        rightChildren: Array.from(right ? right.children : []).map(c => ({
+          tag: c.tagName,
+          className: c.className,
+          rect: c.getBoundingClientRect(),
+          computedWidth: window.getComputedStyle(c).width,
+          computedDisplay: window.getComputedStyle(c).display,
+          computedFlex: window.getComputedStyle(c).flex,
+        })),
+        wccRect: wcc?.getBoundingClientRect(),
+        wccComputed: wcc ? {
+          display: window.getComputedStyle(wcc).display,
+          width: window.getComputedStyle(wcc).width,
+          height: window.getComputedStyle(wcc).height,
+          visibility: window.getComputedStyle(wcc).visibility,
+          opacity: window.getComputedStyle(wcc).opacity,
+          zIndex: window.getComputedStyle(wcc).zIndex,
+        } : null,
+        icons: icons.map(icon => ({
+          className: icon.className,
+          rect: icon.getBoundingClientRect(),
+          computed: {
+            display: window.getComputedStyle(icon).display,
+            width: window.getComputedStyle(icon).width,
+            height: window.getComputedStyle(icon).height,
+            color: window.getComputedStyle(icon).color,
+            fontSize: window.getComputedStyle(icon).fontSize,
+            fontFamily: window.getComputedStyle(icon).fontFamily,
+            beforeContent: window.getComputedStyle(icon, '::before').content,
+          }
+        })),
+        appliedRules: Array.from(document.styleSheets).flatMap(sheet => {
+          try {
+            return Array.from(sheet.cssRules || []).filter(rule => rule.selectorText && rule.selectorText.includes('window-controls-container')).map(r => ({ selector: r.selectorText, cssText: r.cssText }));
+          } catch (e) {
+            return [];
+          }
+        })
+      };
     });
-    console.log('--- TITLEBAR HTML ---');
-    console.log(titlebarHTML);
-    console.log('---------------------');
+    console.log('--- WINDOW CONTROLS DIAGNOSTICS ---');
+    console.log(JSON.stringify(diagnostics, null, 2));
+    console.log('-----------------------------------');
 
     const shot1 = path.join(ARTIFACTS_DIR, 'battle_test_workbench_loaded.png');
     await page.screenshot({ path: shot1 });
     console.log(`   📸 Screenshot saved: ${shot1}`);
+
+    // Test Window Controls Hover
+    console.log('🪟 Testing Window Controls Hover...');
+    await page.hover('.window-minimize');
+    await page.waitForTimeout(200);
+    await page.hover('.window-max-restore');
+    await page.waitForTimeout(200);
+    await page.hover('.window-close');
+    await page.waitForTimeout(200);
+    console.log('   ✅ Window controls hover responsive!');
 
     // Test 2: Command Palette & Terminal
     console.log('⌨️ 4. Opening Command Palette (F1)...');

@@ -74,27 +74,31 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-left {
 	order: 0;
-	width: auto;
-	flex-grow: 1;
-	flex-shrink: 1;
+	display: flex;
+	height: 100%;
+	align-items: center;
+	flex: 0 0 auto;
 	justify-content: flex-start;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-center {
 	order: 1;
-	max-width: fit-content;
-	min-width: 0px;
-	margin: 0 10px;
+	display: flex;
+	height: 100%;
+	align-items: center;
 	justify-content: center;
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0 10px;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-right {
 	order: 2;
-	width: auto;
-	min-width: min-content;
-	flex-grow: 1;
-	flex-shrink: 0;
+	display: flex;
+	height: 100%;
+	align-items: center;
 	justify-content: flex-end;
+	flex: 0 0 auto;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container:not(.has-center) > .titlebar-left {
@@ -311,8 +315,9 @@
 	align-items: center;
 	height: 100%;
 	width: 138px !important;
-	min-width: 138px;
-	margin-left: auto;
+	min-width: 138px !important;
+	flex-shrink: 0 !important;
+	margin-left: 8px;
 	-webkit-app-region: no-drag;
 	z-index: 3000;
 }
@@ -323,21 +328,25 @@
 	align-items: center;
 	height: 100%;
 	width: 138px !important;
-	min-width: 138px;
-	margin-left: auto;
+	min-width: 138px !important;
+	flex-shrink: 0 !important;
+	margin-left: 8px;
 	-webkit-app-region: no-drag;
 	z-index: 3000;
 }
 
 /* Window Control Icons */
 .monaco-workbench .part.titlebar .window-controls-container > .window-icon {
-	display: flex;
+	display: flex !important;
 	justify-content: center;
 	align-items: center;
 	height: 100%;
-	width: 46px;
+	width: 46px !important;
+	min-width: 46px !important;
 	font-size: 16px;
-	color: var(--vscode-titleBar-activeForeground);
+	color: var(--vscode-titleBar-activeForeground, #cccccc) !important;
+	cursor: pointer;
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench .part.titlebar.inactive .window-controls-container > .window-icon {
@@ -405,7 +414,7 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
-	margin-left: auto;
+	margin-left: 0;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container:not(.has-no-actions) + .update-toolbar-container:not(.has-no-actions):not(.overflowing) {
