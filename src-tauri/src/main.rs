@@ -16,6 +16,7 @@ use uuid::Uuid;
 // ─────────────────────────────────────────────
 
 struct PtySession {
+    master: Box<dyn portable_pty::MasterPty + Send>,
     writer: Box<dyn std::io::Write + Send>,
     child: Box<dyn portable_pty::Child + Send>,
 }
@@ -223,8 +224,9 @@ fn terminal_create(
     }
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let master = pair.master;
+    let writer = master.take_writer().map_err(|e| e.to_string())?;
+    let mut reader = master.try_clone_reader().map_err(|e| e.to_string())?;
 
     let id_clone = id.clone();
     let window_clone = window.clone();
@@ -244,7 +246,7 @@ fn terminal_create(
         }
     });
 
-    state.lock().unwrap().insert(id.clone(), PtySession { writer, child });
+    state.lock().unwrap().insert(id.clone(), PtySession { master, writer, child });
     Ok(id)
 }
 
@@ -261,12 +263,20 @@ fn terminal_write(state: tauri::State<PtyStore>, id: String, data: String) -> Re
 
 #[tauri::command]
 fn terminal_resize(
-    _state: tauri::State<PtyStore>,
-    _id: String,
-    _cols: u16,
-    _rows: u16,
+    state: tauri::State<PtyStore>,
+    id: String,
+    cols: u16,
+    rows: u16,
 ) -> Result<(), String> {
-    // Full resize requires keeping the master PTY handle — placeholder for now
+    let store = state.lock().unwrap();
+    if let Some(session) = store.get(&id) {
+        let _ = session.master.resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        });
+    }
     Ok(())
 }
 
@@ -459,21 +469,158 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
     run_falkon(entry, options)
 }
 
+#[tauri::command]
+fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_toggle_maximize(window: tauri::Window) -> Result<bool, String> {
+    let is_max = window.is_maximized().map_err(|e| e.to_string())?;
+    if is_max {
+        window.unmaximize().map_err(|e| e.to_string())?;
+        Ok(false)
+    } else {
+        window.maximize().map_err(|e| e.to_string())?;
+        Ok(true)
+    }
+}
+
+#[tauri::command]
+fn window_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_server_authority() -> String {
+    "127.0.0.1:9888".to_string()
+}
+
+// ─────────────────────────────────────────────
+//  Node.js Extension Host Sidecar Supervisor
+// ─────────────────────────────────────────────
+
+struct ServerManager {
+    #[allow(dead_code)]
+    child: Mutex<Option<std::process::Child>>,
+}
+
+fn find_server_script() -> Option<std::path::PathBuf> {
+    let candidates = [
+        // 1. Current working directory
+        std::env::current_dir().ok().map(|d| d.join("src").join("server-main.js")),
+        std::env::current_dir().ok().map(|d| d.join("server-main.js")),
+        // 2. Executable directory parent
+        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
+        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|d| d.parent()).map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
+        // 3. Compile-time manifest dir fallback
+        option_env!("CARGO_MANIFEST_DIR").map(|d| {
+            let mut p = std::path::PathBuf::from(d);
+            if p.ends_with("src-tauri") { p.pop(); }
+            p.join("src").join("server-main.js")
+        }),
+        // 4. Standard dev path
+        Some(std::path::PathBuf::from("/home/gt/falkon-labs/Falkon_Dev_Kit/src/server-main.js")),
+    ];
+
+    for candidate in candidates.into_iter().flatten() {
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn start_node_server() -> Option<std::process::Child> {
+    // Check if server is already running on port 9888
+    if std::net::TcpStream::connect("127.0.0.1:9888").is_ok() {
+        println!("[Falkon] Node.js Extension Host server is already running on 127.0.0.1:9888");
+        return None;
+    }
+
+    let node_cmd = if cfg!(windows) { "node.exe" } else { "node" };
+    let server_path = match find_server_script() {
+        Some(p) => p,
+        None => {
+            eprintln!("[Falkon] Error: Could not locate server-main.js");
+            return None;
+        }
+    };
+
+    let server_path_str = server_path.to_string_lossy().to_string();
+    println!("[Falkon] Starting Node.js Extension Host sidecar: {}", server_path_str);
+
+    let mut cmd = Command::new(node_cmd);
+    cmd.arg(&server_path_str)
+        .arg("--host").arg("127.0.0.1")
+        .arg("--port").arg("9888")
+        .arg("--connection-token").arg("falkon-dev-token")
+        .arg("--accept-server-license-terms");
+
+    match cmd.spawn() {
+        Ok(child) => {
+            println!("[Falkon] Node.js Extension Host sidecar spawned with PID: {}", child.id());
+            // Give the server a brief moment to bind to the port
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            Some(child)
+        }
+        Err(e) => {
+            eprintln!("[Falkon] Warning: Could not spawn Node.js sidecar automatically: {}", e);
+            None
+        }
+    }
+}
+
 // ─────────────────────────────────────────────
 //  Main
 // ─────────────────────────────────────────────
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        // Sanitize environment variables that may leak outdated Snap glibc / libpthread libraries
+        let vars_to_clean = ["LD_LIBRARY_PATH", "GTK_PATH", "GIO_MODULE_DIR", "GIO_MODULE_PATH", "GSETTINGS_SCHEMA_DIR"];
+        for var in &vars_to_clean {
+            if let Ok(val) = std::env::var(var) {
+                let cleaned: Vec<&str> = val
+                    .split(':')
+                    .filter(|p| !p.contains("/snap/core") && !p.contains("/snap/"))
+                    .filter(|p| !p.trim().is_empty())
+                    .collect();
+                if cleaned.is_empty() {
+                    std::env::remove_var(var);
+                } else {
+                    std::env::set_var(var, cleaned.join(":"));
+                }
+            }
+        }
+
+        // Avoid DRI2 / EGL driver crashes and WebKitGTK bugs on Linux
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        if std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        }
+    }
+
     let pty_store: PtyStore = Mutex::new(HashMap::new());
+    let server_manager = ServerManager {
+        child: Mutex::new(start_node_server()),
+    };
 
     tauri::Builder::default()
         .manage(pty_store)
+        .manage(server_manager)
         .invoke_handler(tauri::generate_handler![
+            get_server_authority,
             // File system
             read_file, write_file, read_dir, stat_file, file_exists,
             create_dir, rename_file, create_temp_file, delete_file,
             // File dialogs
             open_folder_dialog, open_file_dialog, save_file_dialog,
+            // Window controls
+            window_minimize, window_toggle_maximize, window_close,
             // Settings
             read_settings, write_settings, read_keybindings,
             // Terminal

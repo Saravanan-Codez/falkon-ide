@@ -29,6 +29,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
+			if (folderPath) {
+				const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: '127.0.0.1:9888', path: folderPath });
+				return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: false });
+			}
+			return;
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -48,6 +57,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const filePath = await (window as any).__tauri_dialogs__.openFile();
+			if (filePath) {
+				const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: '127.0.0.1:9888', path: filePath });
+				this.addFileToRecentlyOpened(uri);
+				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+			}
+			return;
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -82,6 +101,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
+			if (folderPath) {
+				const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: '127.0.0.1:9888', path: folderPath });
+				return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: false });
+			}
+			return;
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
@@ -111,6 +139,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const savePath = await (window as any).__tauri_dialogs__.saveFile(defaultUri?.fsPath);
+			if (savePath) {
+				return URI.file(savePath);
+			}
+			return undefined;
+		}
+
 		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
 
 		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
@@ -154,6 +190,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			const savePath = await (window as any).__tauri_dialogs__.saveFile(options.defaultUri?.fsPath);
+			if (savePath) {
+				return URI.from({ scheme: Schemas.vscodeRemote, authority: '127.0.0.1:9888', path: savePath });
+			}
+			return undefined;
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (this.shouldUseSimplified(schema)) {
@@ -182,6 +226,22 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			if (options.canSelectFolders && !options.canSelectFiles) {
+				const folder = await (window as any).__tauri_dialogs__.openFolder();
+				if (folder) {
+					return [URI.from({ scheme: Schemas.vscodeRemote, authority: '127.0.0.1:9888', path: folder })];
+				}
+				return undefined;
+			} else {
+				const file = await (window as any).__tauri_dialogs__.openFile(options.filters);
+				if (file) {
+					return [URI.from({ scheme: Schemas.vscodeRemote, authority: '127.0.0.1:9888', path: file })];
+				}
+				return undefined;
+			}
+		}
+
 		const schema = this.getFileSystemSchema(options);
 
 		if (this.shouldUseSimplified(schema)) {
@@ -276,4 +336,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 }
 
-registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);
+import { TauriFileDialogService } from './tauriFileDialogService.js';
+
+const SelectedFileDialogService = ((globalThis as any).__tauri_dialogs__ || (typeof window !== 'undefined' && (window as any).__tauri_dialogs__)) ? TauriFileDialogService : FileDialogService;
+
+registerSingleton(IFileDialogService, SelectedFileDialogService, InstantiationType.Delayed);

@@ -1,0 +1,4 @@
+const SPOTLIGHT_PRESENTATION_KIND = "spotlight";
+export {
+  SPOTLIGHT_PRESENTATION_KIND
+};

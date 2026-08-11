@@ -1,0 +1,234 @@
+import "./media/imageCarousel.css";
+import { localize, localize2 } from "../../../../nls.js";
+import { SyncDescriptor } from "../../../../platform/instantiation/common/descriptors.js";
+import { Registry } from "../../../../platform/registry/common/platform.js";
+import { EditorPaneDescriptor } from "../../../browser/editor.js";
+import { EditorExtensions } from "../../../common/editor.js";
+import { IEditorService } from "../../../services/editor/common/editorService.js";
+import { VSBuffer } from "../../../../base/common/buffer.js";
+import { generateUuid } from "../../../../base/common/uuid.js";
+import { ImageCarouselEditor } from "./imageCarouselEditor.js";
+import { ImageCarouselEditorInput } from "./imageCarouselEditorInput.js";
+import { Action2, MenuId, registerAction2 } from "../../../../platform/actions/common/actions.js";
+import { ContextKeyExpr } from "../../../../platform/contextkey/common/contextkey.js";
+import { ExplorerFolderContext } from "../../files/common/files.js";
+import { IExplorerService } from "../../files/browser/files.js";
+import { ResourceContextKey } from "../../../common/contextkeys.js";
+import { IFileService } from "../../../../platform/files/common/files.js";
+import { getMediaMime } from "../../../../base/common/mime.js";
+import { URI } from "../../../../base/common/uri.js";
+import { basename, dirname, extname } from "../../../../base/common/resources.js";
+import { ResourceSet } from "../../../../base/common/map.js";
+import { INotificationService } from "../../../../platform/notification/common/notification.js";
+import { IWorkspaceContextService } from "../../../../platform/workspace/common/workspace.js";
+import { Extensions as ConfigurationExtensions } from "../../../../platform/configuration/common/configurationRegistry.js";
+Registry.as(ConfigurationExtensions.Configuration).registerConfiguration({
+  id: "imageCarousel",
+  title: localize("imageCarouselConfigurationTitle", "Images Preview"),
+  type: "object",
+  properties: {
+    "imageCarousel.explorerContextMenu.enabled": {
+      type: "boolean",
+      default: true,
+      markdownDescription: localize("imageCarousel.explorerContextMenu.enabled", "Controls whether the **Open in Images Preview** option appears in the Explorer context menu."),
+      tags: ["experimental"]
+    },
+    "imageCarousel.chat.enabled": {
+      type: "boolean",
+      default: true,
+      description: localize("imageCarousel.chat.enabled", "Controls whether clicking an image attachment in chat opens the Images Preview viewer.")
+    }
+  }
+});
+Registry.as(EditorExtensions.EditorPane).registerEditorPane(
+  EditorPaneDescriptor.create(
+    ImageCarouselEditor,
+    ImageCarouselEditor.ID,
+    localize("imageCarouselEditor", "Images Preview")
+  ),
+  [
+    new SyncDescriptor(ImageCarouselEditorInput)
+  ]
+);
+class ImageCarouselEditorInputSerializer {
+  canSerialize() {
+    return false;
+  }
+  serialize() {
+    return void 0;
+  }
+  deserialize() {
+    return void 0;
+  }
+}
+Registry.as(EditorExtensions.EditorFactory).registerEditorSerializer(ImageCarouselEditorInput.ID, ImageCarouselEditorInputSerializer);
+function isCollectionArgs(args) {
+  return typeof args === "object" && args !== null && typeof args.collection === "object" && typeof args.startIndex === "number";
+}
+function isSingleImageArgs(args) {
+  return typeof args === "object" && args !== null && typeof args.name === "string" && typeof args.mimeType === "string" && args.data instanceof Uint8Array;
+}
+class OpenImageInCarouselAction extends Action2 {
+  constructor() {
+    super({
+      id: "workbench.action.chat.openImageInCarousel",
+      title: localize2("openImageInCarousel", "Open in Images Preview"),
+      f1: false
+    });
+  }
+  async run(accessor, args) {
+    const editorService = accessor.get(IEditorService);
+    let collection;
+    let startIndex;
+    if (isCollectionArgs(args)) {
+      collection = args.collection;
+      startIndex = args.startIndex;
+    } else if (isSingleImageArgs(args)) {
+      collection = {
+        id: generateUuid(),
+        title: args.title ?? localize("imageCarousel.title", "Images Preview"),
+        sections: [{
+          title: "",
+          images: [{
+            id: generateUuid(),
+            name: args.name,
+            mimeType: args.mimeType,
+            data: VSBuffer.wrap(args.data)
+          }]
+        }]
+      };
+      startIndex = 0;
+    } else {
+      return;
+    }
+    const input = new ImageCarouselEditorInput(collection, startIndex);
+    await editorService.openEditor(input, { pinned: true });
+  }
+}
+registerAction2(OpenImageInCarouselAction);
+const MEDIA_EXTENSION_REGEX = /^\.(png|jpg|jpeg|jpe|gif|webp|svg|bmp|ico|mp4|webm|mov)$/i;
+function isMediaResource(uri) {
+  return MEDIA_EXTENSION_REGEX.test(extname(uri));
+}
+async function collectImageFilesFromFolder(fileService, folderUri) {
+  const stat = await fileService.resolve(folderUri);
+  const imageUris = [];
+  if (stat.children) {
+    for (const child of stat.children) {
+      if (child.isFile && isMediaResource(child.resource)) {
+        imageUris.push(child.resource);
+      }
+    }
+  }
+  imageUris.sort((a, b) => basename(a).localeCompare(basename(b)));
+  return imageUris;
+}
+function createImageEntries(uris) {
+  return uris.map((uri) => ({
+    id: generateUuid(),
+    name: basename(uri),
+    mimeType: getMediaMime(uri.path) ?? "image/png",
+    uri
+  }));
+}
+class OpenImagesInCarouselFromExplorerAction extends Action2 {
+  constructor() {
+    super({
+      id: "workbench.action.openImagesInCarousel",
+      title: localize2("openImagesInCarousel", "Open in Images Preview"),
+      f1: false,
+      menu: [{
+        id: MenuId.ExplorerContext,
+        group: "navigation",
+        order: 25,
+        when: ContextKeyExpr.and(
+          ContextKeyExpr.has("config.imageCarousel.explorerContextMenu.enabled"),
+          ContextKeyExpr.or(
+            ExplorerFolderContext,
+            ContextKeyExpr.regex(ResourceContextKey.Extension.key, MEDIA_EXTENSION_REGEX)
+          )
+        )
+      }]
+    });
+  }
+  async run(accessor, resource) {
+    const explorerService = accessor.get(IExplorerService);
+    const fileService = accessor.get(IFileService);
+    const editorService = accessor.get(IEditorService);
+    const notificationService = accessor.get(INotificationService);
+    const contextService = accessor.get(IWorkspaceContextService);
+    const context = explorerService.getContext(true);
+    let imageUris = [];
+    let startUri;
+    try {
+      if (context.length === 0) {
+        let folderUri;
+        if (URI.isUri(resource)) {
+          folderUri = resource;
+        } else {
+          const folders = contextService.getWorkspace().folders;
+          if (folders.length > 0) {
+            folderUri = folders[0].uri;
+          }
+        }
+        if (folderUri) {
+          imageUris = await collectImageFilesFromFolder(fileService, folderUri);
+        }
+      } else {
+        const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isMediaResource(context[0].resource);
+        if (hasSingleImageFile) {
+          startUri = context[0].resource;
+          const parentUri = dirname(context[0].resource);
+          imageUris = await collectImageFilesFromFolder(fileService, parentUri);
+        } else {
+          const seen = new ResourceSet();
+          for (const item of context) {
+            if (item.isDirectory) {
+              const folderImages = await collectImageFilesFromFolder(fileService, item.resource);
+              for (const uri of folderImages) {
+                if (!seen.has(uri)) {
+                  seen.add(uri);
+                  imageUris.push(uri);
+                }
+              }
+            } else if (isMediaResource(item.resource)) {
+              if (!seen.has(item.resource)) {
+                seen.add(item.resource);
+                imageUris.push(item.resource);
+                if (!startUri) {
+                  startUri = item.resource;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      notificationService.error(localize("folderReadError", "Could not read folder contents."));
+      return;
+    }
+    if (imageUris.length === 0) {
+      notificationService.info(localize("noImagesFound", "No images found in this folder."));
+      return;
+    }
+    const images = createImageEntries(imageUris);
+    let startIndex = 0;
+    if (startUri) {
+      const idx = images.findIndex((img) => img.uri?.toString() === startUri.toString());
+      if (idx >= 0) {
+        startIndex = idx;
+      }
+    }
+    const collection = {
+      id: generateUuid(),
+      title: localize("imageCarousel.explorerTitle", "Images Preview"),
+      sections: [{
+        title: "",
+        images
+      }]
+    };
+    const input = new ImageCarouselEditorInput(collection, startIndex);
+    await editorService.openEditor(input, { pinned: true });
+  }
+}
+registerAction2(OpenImagesInCarouselFromExplorerAction);

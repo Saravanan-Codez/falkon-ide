@@ -1,0 +1,246 @@
+import { localize, localize2 } from "../../../../nls.js";
+import { Action2, MenuRegistry, registerAction2 } from "../../../../platform/actions/common/actions.js";
+import { ContextKeyExpr } from "../../../../platform/contextkey/common/contextkey.js";
+import { AI_CUSTOMIZATION_CATEGORY, AI_CUSTOMIZATION_VIEW_ID, AICustomizationItemMenuId, FOCUS_AI_CUSTOMIZATION_VIEW_ID } from "./aiCustomizationTreeView.js";
+import { AICustomizationItemDisabledContextKey, AICustomizationItemStorageContextKey, AICustomizationItemTypeContextKey } from "./aiCustomizationTreeViewViews.js";
+import { PromptsType } from "../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js";
+import { Codicon } from "../../../../base/common/codicons.js";
+import { ICommandService } from "../../../../platform/commands/common/commands.js";
+import { URI } from "../../../../base/common/uri.js";
+import { IEditorService } from "../../../../workbench/services/editor/common/editorService.js";
+import { IFileService, FileSystemProviderCapabilities } from "../../../../platform/files/common/files.js";
+import { IClipboardService } from "../../../../platform/clipboard/common/clipboardService.js";
+import { IDialogService } from "../../../../platform/dialogs/common/dialogs.js";
+import { IPromptsService, PromptsStorage } from "../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js";
+import { IViewsService } from "../../../../workbench/services/views/common/viewsService.js";
+import { KeyCode, KeyMod } from "../../../../base/common/keyCodes.js";
+import { KeybindingWeight } from "../../../../platform/keybinding/common/keybindingsRegistry.js";
+import { SessionsViewId } from "../../sessions/browser/views/sessionsView.js";
+import { IsSessionsWindowContext } from "../../../../workbench/common/contextkeys.js";
+import { TerminalContextKeys } from "../../../../workbench/contrib/terminal/common/terminalContextKey.js";
+function extractURI(context) {
+  if (URI.isUri(context)) {
+    return context;
+  }
+  if (typeof context === "string") {
+    return URI.parse(context);
+  }
+  if (URI.isUri(context.uri)) {
+    return context.uri;
+  }
+  return URI.parse(context.uri);
+}
+const OPEN_AI_CUSTOMIZATION_FILE_ID = "aiCustomization.openFile";
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: OPEN_AI_CUSTOMIZATION_FILE_ID,
+      title: localize2("open", "Open"),
+      icon: Codicon.goToFile
+    });
+  }
+  async run(accessor, context) {
+    const editorService = accessor.get(IEditorService);
+    await editorService.openEditor({
+      resource: extractURI(context)
+    });
+  }
+});
+const RUN_PROMPT_FROM_VIEW_ID = "aiCustomization.runPrompt";
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: RUN_PROMPT_FROM_VIEW_ID,
+      title: localize2("runPrompt", "Run Prompt"),
+      icon: Codicon.play
+    });
+  }
+  async run(accessor, context) {
+    const commandService = accessor.get(ICommandService);
+    await commandService.executeCommand("workbench.action.chat.run.prompt.current", extractURI(context));
+  }
+});
+const DELETE_AI_CUSTOMIZATION_FILE_ID = "aiCustomization.deleteFile";
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: DELETE_AI_CUSTOMIZATION_FILE_ID,
+      title: localize2("delete", "Delete"),
+      icon: Codicon.trash
+    });
+  }
+  async run(accessor, context) {
+    const fileService = accessor.get(IFileService);
+    const dialogService = accessor.get(IDialogService);
+    const uri = extractURI(context);
+    const name = typeof context === "object" && !URI.isUri(context) ? context.name ?? "" : "";
+    if (uri.scheme !== "file") {
+      return;
+    }
+    const confirmation = await dialogService.confirm({
+      message: localize("confirmDelete", "Are you sure you want to delete '{0}'?", name || uri.path),
+      primaryButton: localize("delete", "Delete")
+    });
+    if (confirmation.confirmed) {
+      const useTrash = fileService.hasCapability(uri, FileSystemProviderCapabilities.Trash);
+      await fileService.del(uri, { useTrash, recursive: true });
+    }
+  }
+});
+const COPY_AI_CUSTOMIZATION_PATH_ID = "aiCustomization.copyPath";
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: COPY_AI_CUSTOMIZATION_PATH_ID,
+      title: localize2("copyPath", "Copy Path"),
+      icon: Codicon.clippy
+    });
+  }
+  async run(accessor, context) {
+    const clipboardService = accessor.get(IClipboardService);
+    const uri = extractURI(context);
+    const textToCopy = uri.scheme === "file" ? uri.fsPath : uri.toString(true);
+    await clipboardService.writeText(textToCopy);
+  }
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize("delete", "Delete"), icon: Codicon.trash },
+  group: "inline",
+  order: 10
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: OPEN_AI_CUSTOMIZATION_FILE_ID, title: localize("open", "Open") },
+  group: "1_open",
+  order: 1
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: RUN_PROMPT_FROM_VIEW_ID, title: localize("runPrompt", "Run Prompt"), icon: Codicon.play },
+  group: "2_run",
+  order: 1,
+  when: ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.prompt)
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize("copyPath", "Copy Path") },
+  group: "3_modify",
+  order: 1
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize("delete", "Delete") },
+  group: "3_modify",
+  order: 10
+});
+const DISABLE_AI_CUSTOMIZATION_ITEM_ID = "aiCustomization.disableItem";
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: DISABLE_AI_CUSTOMIZATION_ITEM_ID,
+      title: localize2("disable", "Disable"),
+      icon: Codicon.eyeClosed
+    });
+  }
+  async run(accessor, context) {
+    if (typeof context !== "object" || URI.isUri(context)) {
+      return;
+    }
+    const promptsService = accessor.get(IPromptsService);
+    const viewsService = accessor.get(IViewsService);
+    const uri = extractURI(context);
+    const promptType = context.promptType;
+    if (!promptType) {
+      return;
+    }
+    const disabled = promptsService.getDisabledPromptFiles(promptType);
+    disabled.add(uri);
+    promptsService.setDisabledPromptFiles(promptType, disabled);
+    const view = viewsService.getActiveViewWithId(AI_CUSTOMIZATION_VIEW_ID);
+    view?.refresh();
+  }
+});
+const ENABLE_AI_CUSTOMIZATION_ITEM_ID = "aiCustomization.enableItem";
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: ENABLE_AI_CUSTOMIZATION_ITEM_ID,
+      title: localize2("enable", "Enable"),
+      icon: Codicon.eye
+    });
+  }
+  async run(accessor, context) {
+    if (typeof context !== "object" || URI.isUri(context)) {
+      return;
+    }
+    const promptsService = accessor.get(IPromptsService);
+    const viewsService = accessor.get(IViewsService);
+    const uri = extractURI(context);
+    const promptType = context.promptType;
+    if (!promptType) {
+      return;
+    }
+    const disabled = promptsService.getDisabledPromptFiles(promptType);
+    disabled.delete(uri);
+    promptsService.setDisabledPromptFiles(promptType, disabled);
+    const view = viewsService.getActiveViewWithId(AI_CUSTOMIZATION_VIEW_ID);
+    view?.refresh();
+  }
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize("disable", "Disable") },
+  group: "4_toggle",
+  order: 1,
+  when: ContextKeyExpr.and(
+    ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+    ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, PromptsStorage.builtIn),
+    ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill)
+  )
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize("enable", "Enable") },
+  group: "4_toggle",
+  order: 1,
+  when: ContextKeyExpr.and(
+    ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+    ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, PromptsStorage.builtIn),
+    ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill)
+  )
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: DISABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize("disable", "Disable"), icon: Codicon.eyeClosed },
+  group: "inline",
+  order: 5,
+  when: ContextKeyExpr.and(
+    ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, false),
+    ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, PromptsStorage.builtIn),
+    ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill)
+  )
+});
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+  command: { id: ENABLE_AI_CUSTOMIZATION_ITEM_ID, title: localize("enable", "Enable"), icon: Codicon.eye },
+  group: "inline",
+  order: 5,
+  when: ContextKeyExpr.and(
+    ContextKeyExpr.equals(AICustomizationItemDisabledContextKey.key, true),
+    ContextKeyExpr.equals(AICustomizationItemStorageContextKey.key, PromptsStorage.builtIn),
+    ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.skill)
+  )
+});
+registerAction2(class extends Action2 {
+  constructor() {
+    super({
+      id: FOCUS_AI_CUSTOMIZATION_VIEW_ID,
+      title: localize2("focusCustomizations", "Focus Chat Customizations"),
+      category: AI_CUSTOMIZATION_CATEGORY,
+      precondition: IsSessionsWindowContext,
+      f1: true,
+      keybinding: {
+        weight: KeybindingWeight.WorkbenchContrib,
+        primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
+        when: ContextKeyExpr.and(IsSessionsWindowContext, TerminalContextKeys.focus.negate())
+      }
+    });
+  }
+  async run(accessor) {
+    const viewsService = accessor.get(IViewsService);
+    const sessionsView = await viewsService.openView(SessionsViewId, false);
+    sessionsView?.focusCustomizations();
+  }
+});

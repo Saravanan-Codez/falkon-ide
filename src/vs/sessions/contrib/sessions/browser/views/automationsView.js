@@ -1,0 +1,884 @@
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __decorateClass = (decorators, target, key, kind) => {
+  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target;
+  for (var i = decorators.length - 1, decorator; i >= 0; i--)
+    if (decorator = decorators[i])
+      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
+  if (kind && result) __defProp(target, key, result);
+  return result;
+};
+var __decorateParam = (index, decorator) => (target, key) => decorator(target, key, index);
+import "../media/automationsCards.css";
+import "./automationsAccessibility.js";
+import * as DOM from "../../../../../base/browser/dom.js";
+import { Button, ButtonBar } from "../../../../../base/browser/ui/button/button.js";
+import { getDefaultHoverDelegate } from "../../../../../base/browser/ui/hover/hoverDelegateFactory.js";
+import { defaultButtonStyles } from "../../../../../platform/theme/browser/defaultStyles.js";
+import { Codicon } from "../../../../../base/common/codicons.js";
+import { Disposable, DisposableStore, toDisposable } from "../../../../../base/common/lifecycle.js";
+import { autorun, constObservable, observableSignalFromEvent, observableValue } from "../../../../../base/common/observable.js";
+import { ThemeIcon } from "../../../../../base/common/themables.js";
+import { localize, localize2 } from "../../../../../nls.js";
+import { IInstantiationService } from "../../../../../platform/instantiation/common/instantiation.js";
+import { IHoverService } from "../../../../../platform/hover/browser/hover.js";
+import { IAutomationService } from "../../../../../workbench/contrib/chat/common/automations/automationService.js";
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from "../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js";
+import { IAutomationRunner } from "../../../../../workbench/contrib/chat/common/automations/automationRunner.js";
+import { IAutomationDialogService } from "../../../../../workbench/contrib/chat/common/automations/automationDialogService.js";
+import { DAYS_OF_WEEK } from "../../../../../workbench/contrib/chat/common/automations/schedule.js";
+import { automationIcon } from "../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js";
+import { basename } from "../../../../../base/common/resources.js";
+import { CancellationToken } from "../../../../../base/common/cancellation.js";
+import { ILogService } from "../../../../../platform/log/common/log.js";
+import { IDialogService } from "../../../../../platform/dialogs/common/dialogs.js";
+import { IConfigurationService } from "../../../../../platform/configuration/common/configuration.js";
+import { ContextKeyExpr, IContextKeyService } from "../../../../../platform/contextkey/common/contextkey.js";
+import { status } from "../../../../../base/browser/ui/aria/aria.js";
+import { createPixelSpinner } from "../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js";
+import { Gesture, EventType as TouchEventType } from "../../../../../base/browser/touch.js";
+import { ISessionsService } from "../../../../services/sessions/browser/sessionsService.js";
+import { ISessionsManagementService } from "../../../../services/sessions/common/sessionsManagement.js";
+import { URI } from "../../../../../base/common/uri.js";
+import { AbstractCustomView } from "../../../../services/customView/browser/customView.js";
+import { ICustomViewService } from "../../../../services/customView/browser/customViewService.js";
+import { SyncDescriptor } from "../../../../../platform/instantiation/common/descriptors.js";
+import { registerWorkbenchContribution2, WorkbenchPhase } from "../../../../../workbench/common/contributions.js";
+import { Menus } from "../../../../browser/menus.js";
+import { Action2, MenuItemAction, registerAction2 } from "../../../../../platform/actions/common/actions.js";
+import { IActionViewItemService } from "../../../../../platform/actions/browser/actionViewItemService.js";
+import { BaseActionViewItem } from "../../../../../base/browser/ui/actionbar/actionViewItems.js";
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from "../../../../common/contextkeys.js";
+const $ = DOM.$;
+let AutomationsCardsWidget = class extends Disposable {
+  constructor(automationService, sessionsManagementService, instantiationService, contextKeyService) {
+    super();
+    this.automationService = automationService;
+    this.sessionsManagementService = sessionsManagementService;
+    this.isMarkingAllRead = observableValue(this, false);
+    this.element = $(".automations-cards-widget");
+    this.element.tabIndex = -1;
+    const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
+    const focusTracker = this._register(DOM.trackFocus(this.element));
+    this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
+    this._register(focusTracker.onDidBlur(() => focusContext.set(false)));
+    this._register(toDisposable(() => focusContext.reset()));
+    const scrollContent = DOM.append(this.element, $(".automations-cards-scroll-content"));
+    this.cardsSection = this._register(instantiationService.createInstance(AutomationCardsSection, scrollContent));
+    this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead));
+    this._register(autorun((reader) => {
+      const items = this.automationService.automations.read(reader);
+      this.cardsSection.render(items);
+    }));
+    const sessionDeleted = observableSignalFromEvent(this, this.sessionsManagementService.onDidDeleteSession);
+    this._register(autorun((reader) => {
+      if (this.isMarkingAllRead.read(reader)) {
+        return;
+      }
+      sessionDeleted.read(reader);
+      const items = this.automationService.automations.read(reader);
+      const allRuns = this.automationService.runs.read(reader);
+      const sessions = /* @__PURE__ */ new Map();
+      for (const run of allRuns) {
+        if (!run.sessionResource) {
+          continue;
+        }
+        const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+        if (session) {
+          sessions.set(run.id, {
+            session,
+            isRead: session.isRead.read(reader),
+            supportsDelete: session.capabilities.read(reader).supportsDelete === true
+          });
+        }
+      }
+      this.historySection.render(allRuns, items, sessions);
+    }));
+  }
+  layout(width, height) {
+    this.element.style.width = `${width}px`;
+  }
+  focus() {
+    this.element.focus();
+  }
+};
+AutomationsCardsWidget = __decorateClass([
+  __decorateParam(0, IAutomationService),
+  __decorateParam(1, ISessionsManagementService),
+  __decorateParam(2, IInstantiationService),
+  __decorateParam(3, IContextKeyService)
+], AutomationsCardsWidget);
+let AutomationCardsSection = class extends Disposable {
+  constructor(parent, automationService, automationRunner, automationDialogService, hoverService, logService, dialogService, configurationService) {
+    super();
+    this.automationService = automationService;
+    this.automationRunner = automationRunner;
+    this.automationDialogService = automationDialogService;
+    this.hoverService = hoverService;
+    this.logService = logService;
+    this.dialogService = dialogService;
+    this.configurationService = configurationService;
+    this.disposables = this._register(new DisposableStore());
+    this.container = DOM.append(parent, $(".automations-cards-grid"));
+    this.emptyContainer = DOM.append(parent, $(".automations-cards-empty"));
+    this.emptyContainer.style.display = "none";
+  }
+  render(automations) {
+    this.disposables.clear();
+    DOM.clearNode(this.container);
+    if (automations.length === 0) {
+      this.container.style.display = "none";
+      this.emptyContainer.style.display = "";
+      this.renderEmptyState();
+      return;
+    }
+    this.container.style.display = "";
+    this.emptyContainer.style.display = "none";
+    for (const automation of automations) {
+      this.renderCard(automation);
+    }
+  }
+  renderCard(automation) {
+    const wrapper = DOM.append(this.container, $(".automations-card-wrapper"));
+    const card = DOM.append(wrapper, $(".automations-card"));
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", localize("automationCard", "{0} \u2014 {1}", automation.name, formatSchedule(automation)));
+    this.disposables.add(Gesture.addTarget(card));
+    const main = DOM.append(card, $("button.automations-card-main", {
+      type: "button",
+      "aria-label": localize("editAutomationNamed", "Edit automation {0}", automation.name)
+    }));
+    const nameRow = DOM.append(main, $(".automations-card-name"));
+    const nameTextEl = DOM.append(nameRow, $("span.automations-card-name-text"));
+    nameTextEl.textContent = automation.name;
+    if (!automation.enabled) {
+      const badge = DOM.append(nameRow, $("span.automations-card-disabled-badge"));
+      badge.textContent = localize("disabled", "Disabled");
+    }
+    const metaEl = DOM.append(main, $(".automations-card-meta"));
+    const scheduleEl = DOM.append(metaEl, $("span.automations-card-meta-item"));
+    scheduleEl.textContent = formatSchedule(automation);
+    const folderEl = DOM.append(metaEl, $("span.automations-card-meta-item.automations-card-folder"));
+    const folderLabel = automation.target.kind === "workspace" ? basename(automation.target.folderUri) : localize("quickChat", "Quick Chat");
+    folderEl.textContent = folderLabel;
+    this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate("element"), folderEl, folderLabel));
+    const promptEl = DOM.append(main, $(".automations-card-prompt"));
+    const maxLength = 120;
+    promptEl.textContent = automation.prompt.length > maxLength ? automation.prompt.slice(0, maxLength) + "\u2026" : automation.prompt;
+    const actions = DOM.append(card, $(".automations-card-actions"));
+    actions.setAttribute("role", "group");
+    actions.setAttribute("aria-label", localize("automationActions", "Actions for {0}", automation.name));
+    const buttonBar = this.disposables.add(new ButtonBar(actions));
+    const runBtn = this.createIconButton(buttonBar, Codicon.play, localize("runNow", "Run now"), false);
+    this.disposables.add(runBtn.onDidClick(() => {
+      void this.runNow(automation);
+    }));
+    const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize("deleteAutomation", "Delete"), false);
+    this.disposables.add(deleteBtn.onDidClick(() => {
+      void this.confirmDelete(automation);
+    }));
+    for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+      this.disposables.add(DOM.addDisposableListener(card, eventType, (event) => {
+        const target = event.initialTarget ?? event.target;
+        if (target instanceof Node && DOM.isAncestor(target, actions)) {
+          return;
+        }
+        void this.openEditDialog(automation);
+      }));
+    }
+  }
+  createIconButton(buttonBar, icon, tooltip, disabled) {
+    const button = buttonBar.addButton({
+      ariaLabel: tooltip,
+      disabled,
+      supportIcons: true,
+      title: tooltip
+    });
+    button.label = `$(${icon.id})`;
+    button.element.classList.add("automations-card-action-button");
+    return button;
+  }
+  async runNow(automation) {
+    if (!await this.ensureEnabled()) {
+      return;
+    }
+    try {
+      const operation = this.automationRunner.runOnce(automation, "manual", 0, CancellationToken.None);
+      const dispatch = await operation.whenDispatched;
+      switch (dispatch.kind) {
+        case "started":
+          status(localize("automationStartedStatus", "Started automation {0}", automation.name));
+          break;
+        case "alreadyRunning":
+          status(localize("automationAlreadyRunningStatus", "Automation {0} is already running", automation.name));
+          break;
+        case "notStarted":
+          status(localize("automationNotStartedStatus", "Automation {0} did not start", automation.name));
+          break;
+      }
+      await operation.whenCompleted;
+    } catch (error) {
+      this.logService.error("[AutomationsCards] Failed to run automation", error);
+      await this.dialogService.error(
+        localize("automationRunActionFailed", "Failed to run automation."),
+        getErrorMessage(error)
+      );
+    }
+  }
+  renderEmptyState() {
+    DOM.clearNode(this.emptyContainer);
+    const icon = DOM.append(this.emptyContainer, $("span.automations-cards-empty-icon"));
+    icon.classList.add(...ThemeIcon.asClassNameArray(automationIcon));
+    const title = DOM.append(this.emptyContainer, $("h3.automations-cards-empty-title"));
+    title.textContent = localize("noAutomationsYet", "No automations yet");
+    const desc = DOM.append(this.emptyContainer, $("p.automations-cards-empty-description"));
+    desc.textContent = localize("noAutomationsDesc", "Create an automation to schedule an agent session to run on a cadence you choose.");
+    const createButton = this.disposables.add(new Button(this.emptyContainer, {
+      ...defaultButtonStyles,
+      title: localize("createAutomation", "Create Automation")
+    }));
+    createButton.label = localize("createAutomation", "Create Automation");
+    createButton.element.classList.add("automations-cards-create-button");
+    this.disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+  }
+  async openCreateDialog() {
+    if (!await this.ensureEnabled()) {
+      return;
+    }
+    const result = await this.automationDialogService.showAutomationDialog({});
+    if (!result || result.kind !== "create") {
+      return;
+    }
+    if (!await this.ensureEnabled()) {
+      return;
+    }
+    try {
+      const created = await this.automationService.createAutomation(result.value, () => this.throwIfDisabled());
+      status(localize("automationCreatedStatus", "Created automation {0}", created.name));
+    } catch (err) {
+      this.logService.error("[AutomationsCards] Failed to create automation", err);
+      await this.dialogService.error(
+        localize("automationCreateFailed", "Failed to create automation."),
+        getErrorMessage(err)
+      );
+    }
+  }
+  async openEditDialog(automation) {
+    if (!await this.ensureEnabled()) {
+      return;
+    }
+    const result = await this.automationDialogService.showAutomationDialog({ existing: automation });
+    if (!result || result.kind !== "update") {
+      return;
+    }
+    if (!await this.ensureEnabled()) {
+      return;
+    }
+    try {
+      const updateResult = await this.automationService.updateAutomationIfUnchanged(result.id, result.value, automation, () => this.throwIfDisabled());
+      if (updateResult.kind === "conflict") {
+        throw new Error(updateResult.current ? localize("automationChangedDuringEdit", "This automation changed while the dialog was open. Reopen it to review the latest values.") : localize("automationDeletedDuringEdit", "This automation was deleted while the dialog was open."));
+      }
+      status(localize("automationUpdatedStatus", "Updated automation {0}", automation.name));
+    } catch (err) {
+      this.logService.error("[AutomationsCards] Failed to update automation", err);
+      await this.dialogService.error(
+        localize("automationUpdateFailed", "Failed to update automation."),
+        getErrorMessage(err)
+      );
+    }
+  }
+  async confirmDelete(automation) {
+    if (!await this.ensureEnabled()) {
+      return;
+    }
+    const confirmed = await this.dialogService.confirm({
+      message: localize("confirmDeleteAutomation", 'Delete automation "{0}"?', automation.name),
+      detail: localize("confirmDeleteDetail", "This will permanently delete the automation and its run history."),
+      primaryButton: localize("delete", "Delete")
+    });
+    if (!confirmed.confirmed) {
+      return;
+    }
+    if (!await this.ensureEnabled()) {
+      return;
+    }
+    try {
+      await this.automationService.deleteAutomation(automation.id, () => this.throwIfDisabled());
+      status(localize("automationDeletedStatus", "Deleted automation {0}", automation.name));
+    } catch (err) {
+      this.logService.error("[AutomationsCards] Failed to delete automation", err);
+      await this.dialogService.error(
+        localize("automationDeleteFailed", "Failed to delete automation."),
+        getErrorMessage(err)
+      );
+    }
+  }
+  isEnabled() {
+    return this.configurationService.getValue(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+  }
+  async ensureEnabled() {
+    if (this.isEnabled()) {
+      return true;
+    }
+    await showAutomationsDisabled(this.dialogService);
+    return false;
+  }
+  throwIfDisabled() {
+    if (!this.isEnabled()) {
+      throw new Error(localize("automationsDisabledBeforeSave", "Automations were disabled before the change could be saved."));
+    }
+  }
+};
+AutomationCardsSection = __decorateClass([
+  __decorateParam(1, IAutomationService),
+  __decorateParam(2, IAutomationRunner),
+  __decorateParam(3, IAutomationDialogService),
+  __decorateParam(4, IHoverService),
+  __decorateParam(5, ILogService),
+  __decorateParam(6, IDialogService),
+  __decorateParam(7, IConfigurationService)
+], AutomationCardsSection);
+let AutomationHistorySection = class extends Disposable {
+  constructor(parent, focusFallback, isMarkingAllRead, automationService, sessionsService, sessionsManagementService, logService, dialogService) {
+    super();
+    this.focusFallback = focusFallback;
+    this.isMarkingAllRead = isMarkingAllRead;
+    this.automationService = automationService;
+    this.sessionsService = sessionsService;
+    this.sessionsManagementService = sessionsManagementService;
+    this.logService = logService;
+    this.dialogService = dialogService;
+    this.disposables = this._register(new DisposableStore());
+    this.runFocusTargets = /* @__PURE__ */ new Map();
+    this.renderedFocusableRunIds = [];
+    this.shouldRestoreFocus = false;
+    this.container = DOM.append(parent, $(".automations-history"));
+  }
+  render(runs, automations, sessions) {
+    this.disposables.clear();
+    DOM.clearNode(this.container);
+    this.runFocusTargets.clear();
+    this.renderedFocusableRunIds = [];
+    if (runs.length === 0) {
+      this.container.style.display = "none";
+      this.restoreFocusAfterRender();
+      return;
+    }
+    this.container.style.display = "";
+    const headerRow = DOM.append(this.container, $(".automations-history-header"));
+    const headerLabel = DOM.append(headerRow, $("span"));
+    headerLabel.textContent = localize("historyHeader", "History");
+    const automationMap = new Map(automations.map((a) => [a.id, a]));
+    const hasUnread = runs.some((run) => isUnreadAutomationRun(run, sessions.get(run.id)));
+    if (hasUnread) {
+      const markAllButton = this.disposables.add(new Button(headerRow, {
+        ...defaultButtonStyles,
+        secondary: true,
+        title: localize("markAllRead", "Mark all as read")
+      }));
+      markAllButton.label = localize("markAllRead", "Mark all as read");
+      markAllButton.element.classList.add("automations-mark-all-read");
+      this.disposables.add(markAllButton.onDidClick(() => {
+        markAllButton.enabled = false;
+        void this.markAllRunsRead(runs);
+      }));
+    }
+    const groups = groupRunsByDate(runs);
+    for (const group of groups) {
+      const groupEl = DOM.append(this.container, $(".automations-history-group"));
+      const groupHeader = DOM.append(groupEl, $(".automations-history-group-header"));
+      groupHeader.textContent = group.label;
+      const groupGrid = DOM.append(groupEl, $(".automations-run-cards-grid"));
+      for (const run of group.runs) {
+        this.renderRunRow(groupGrid, run, automationMap, group.kind, sessions.get(run.id));
+      }
+    }
+    this.restoreFocusAfterRender();
+  }
+  renderRunRow(parent, run, automationMap, bucketKind, sessionState) {
+    const isUnread = isUnreadAutomationRun(run, sessionState);
+    const card = DOM.append(parent, $(".automations-run-card"));
+    if (isUnread) {
+      card.classList.add("unread");
+    }
+    const automation = automationMap.get(run.automationId);
+    const title = automation?.name ?? localize("unknownAutomation", "Unknown");
+    const statusLabel = getRunStatusLabel(run.status);
+    const timestamp = formatTimestamp(run.startedAt, bucketKind);
+    const ariaLabelParts = [title];
+    if (automation?.target.kind === "workspace") {
+      ariaLabelParts.push(basename(automation.target.folderUri));
+    }
+    ariaLabelParts.push(statusLabel, timestamp);
+    if (run.errorMessage) {
+      ariaLabelParts.push(localize("automationRunErrorAriaLabel", "Error: {0}", run.errorMessage));
+    }
+    if (isUnread) {
+      ariaLabelParts.push(localize("automationRunUnreadAriaLabel", "Unread"));
+    }
+    card.setAttribute("role", "group");
+    const ariaLabel = ariaLabelParts.join(", ");
+    let main;
+    let openButton;
+    if (sessionState) {
+      openButton = this.disposables.add(new Button(card, { ariaLabel }));
+      main = openButton.element;
+      main.classList.add("automations-run-card-main");
+      card.classList.add("clickable");
+    } else {
+      main = DOM.append(card, $(".automations-run-card-main"));
+      card.setAttribute("aria-label", ariaLabel);
+    }
+    const nameEl = DOM.append(main, $(".automations-run-card-name"));
+    if (isUnread) {
+      DOM.append(nameEl, $("span.automations-run-card-unread-dot"));
+    }
+    const titleSpan = DOM.append(nameEl, $("span.automations-run-card-name-title"));
+    titleSpan.textContent = title;
+    if (automation?.target.kind === "workspace") {
+      const suffixSpan = DOM.append(nameEl, $("span.automations-run-card-name-workspace"));
+      suffixSpan.textContent = ` \xB7 ${basename(automation.target.folderUri)}`;
+    }
+    const statusRow = DOM.append(main, $(".automations-run-card-status-row"));
+    if (run.status === "running" || run.status === "pending") {
+      const spinnerContainer = DOM.append(statusRow, $("span.automations-run-card-icon"));
+      spinnerContainer.setAttribute("aria-hidden", "true");
+      this.disposables.add(createPixelSpinner(spinnerContainer, { variant: "grid" }));
+    } else {
+      const statusInfo = runStatusIcon(run.status);
+      const iconEl = DOM.append(statusRow, $("span.automations-run-card-icon.codicon"));
+      iconEl.classList.add(`codicon-${statusInfo.iconId}`);
+      iconEl.setAttribute("aria-hidden", "true");
+    }
+    const timeEl = DOM.append(statusRow, $("span.automations-run-card-time"));
+    timeEl.textContent = timestamp;
+    if (run.errorMessage) {
+      DOM.append(statusRow, $(".meta-sep")).textContent = "\xB7";
+      const errorEl = DOM.append(statusRow, $("span.automations-run-card-error"));
+      errorEl.textContent = run.errorMessage;
+    }
+    if (openButton) {
+      this.disposables.add(openButton.onDidClick(() => {
+        void this.openRunSession(run);
+      }));
+    }
+    const isTerminal = run.status === "completed" || run.status === "failed";
+    const canDeleteSession = isTerminal && sessionState?.supportsDelete === true;
+    const canDeleteHistory = isTerminal && !sessionState;
+    let deleteButton;
+    if (canDeleteSession || canDeleteHistory) {
+      const actions = DOM.append(card, $(".automations-run-card-actions"));
+      const deleteLabel = canDeleteSession ? localize("deleteAutomationRunSession", "Delete session for {0}", title) : localize("deleteAutomationRunHistory", "Delete run for {0} from history", title);
+      deleteButton = this.disposables.add(new Button(actions, {
+        ariaLabel: deleteLabel,
+        supportIcons: true,
+        title: deleteLabel
+      }));
+      deleteButton.label = `$(${Codicon.trash.id})`;
+      deleteButton.element.classList.add("automations-run-card-delete-button");
+      this.disposables.add(deleteButton.onDidClick(() => {
+        if (sessionState?.supportsDelete) {
+          void this.confirmDeleteRunSession(run, sessionState.session, title);
+        } else {
+          void this.confirmDeleteRunHistory(run, title);
+        }
+      }));
+    }
+    const focusTarget = openButton?.element ?? deleteButton?.element;
+    if (focusTarget) {
+      this.renderedFocusableRunIds.push(run.id);
+      this.runFocusTargets.set(run.id, focusTarget);
+    }
+  }
+  async openRunSession(run) {
+    if (!run.sessionResource) {
+      return;
+    }
+    const resource = URI.parse(run.sessionResource);
+    if (!this.sessionsManagementService.getSession(resource)) {
+      return;
+    }
+    try {
+      await this.sessionsService.openSession(resource, { preserveFocus: false });
+    } catch (error) {
+      this.logService.error("[AutomationsCards] Failed to open automation run", error);
+      await this.dialogService.error(
+        localize("automationRunOpenFailed", "Failed to open automation run."),
+        getErrorMessage(error)
+      );
+    }
+  }
+  async confirmDeleteRunSession(run, session, automationName) {
+    const confirmed = await this.dialogService.confirm({
+      message: localize("confirmDeleteAutomationRunSession", 'Delete the session for "{0}"?', automationName),
+      detail: localize("confirmDeleteAutomationRunSessionDetail", "This will permanently delete the session and remove this item from run history. This action cannot be undone."),
+      primaryButton: localize("delete", "Delete")
+    });
+    if (!confirmed.confirmed) {
+      return;
+    }
+    this.prepareFocusAfterDeletion(run.id);
+    try {
+      await this.sessionsManagementService.deleteSession(session);
+    } catch (error) {
+      this.clearPendingFocus();
+      this.logService.error("[AutomationsCards] Failed to delete automation run session", error);
+      await this.dialogService.error(
+        localize("automationRunSessionDeleteFailed", "Failed to delete the automation run session."),
+        getErrorMessage(error)
+      );
+      return;
+    }
+    this.prepareFocusAfterDeletion(run.id);
+    try {
+      await this.automationService.deleteRun(run.id);
+      this.restoreFocusAfterRender();
+      status(localize("automationRunSessionDeletedStatus", "Deleted the session for {0}", automationName));
+    } catch (error) {
+      this.clearPendingFocus();
+      this.logService.error("[AutomationsCards] Failed to remove deleted automation run from history", error);
+      await this.dialogService.error(
+        localize("automationRunHistoryDeleteFailed", "The session was deleted, but its run history item could not be removed."),
+        getErrorMessage(error)
+      );
+    }
+  }
+  async confirmDeleteRunHistory(run, automationName) {
+    const confirmed = await this.dialogService.confirm({
+      message: localize("confirmDeleteAutomationRunHistory", "Delete this run from history?"),
+      detail: localize("confirmDeleteAutomationRunHistoryDetail", 'This will permanently remove the run for "{0}" from history. This action cannot be undone.', automationName),
+      primaryButton: localize("delete", "Delete")
+    });
+    if (!confirmed.confirmed) {
+      return;
+    }
+    this.prepareFocusAfterDeletion(run.id);
+    try {
+      await this.automationService.deleteRun(run.id);
+      this.restoreFocusAfterRender();
+      status(localize("automationRunDeletedStatus", "Removed the run for {0} from history", automationName));
+    } catch (error) {
+      this.clearPendingFocus();
+      this.logService.error("[AutomationsCards] Failed to remove automation run from history", error);
+      await this.dialogService.error(
+        localize("automationRunDeleteFailed", "Failed to remove the automation run from history."),
+        getErrorMessage(error)
+      );
+    }
+  }
+  prepareFocusAfterDeletion(runId) {
+    const index = this.renderedFocusableRunIds.indexOf(runId);
+    this.pendingFocusRunId = index >= 0 ? this.renderedFocusableRunIds[index + 1] ?? this.renderedFocusableRunIds[index - 1] : void 0;
+    this.shouldRestoreFocus = true;
+  }
+  restoreFocusAfterRender() {
+    if (!this.shouldRestoreFocus) {
+      return;
+    }
+    const target = this.pendingFocusRunId ? this.runFocusTargets.get(this.pendingFocusRunId) : void 0;
+    this.clearPendingFocus();
+    (target ?? this.focusFallback).focus();
+  }
+  clearPendingFocus() {
+    this.pendingFocusRunId = void 0;
+    this.shouldRestoreFocus = false;
+  }
+  async markAllRunsRead(runs) {
+    this.isMarkingAllRead.set(true, void 0);
+    const sessions = /* @__PURE__ */ new Map();
+    try {
+      for (const run of runs) {
+        if ((run.status === "completed" || run.status === "failed") && run.sessionResource) {
+          const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+          if (session && !session.isRead.get()) {
+            sessions.set(session.resource.toString(), session);
+          }
+        }
+      }
+      await this.sessionsManagementService.markAllRead([...sessions.values()]);
+    } catch (error) {
+      this.logService.error("[AutomationsCards] Failed to mark automation runs read", error);
+      await this.dialogService.error(
+        localize("automationMarkAllReadFailed", "Failed to mark automation runs as read."),
+        getErrorMessage(error)
+      );
+    } finally {
+      this.isMarkingAllRead.set(false, void 0);
+    }
+  }
+};
+AutomationHistorySection = __decorateClass([
+  __decorateParam(3, IAutomationService),
+  __decorateParam(4, ISessionsService),
+  __decorateParam(5, ISessionsManagementService),
+  __decorateParam(6, ILogService),
+  __decorateParam(7, IDialogService)
+], AutomationHistorySection);
+function isUnreadAutomationRun(run, sessionState) {
+  return (run.status === "completed" || run.status === "failed") && !!sessionState && !sessionState.isRead;
+}
+function formatSchedule(automation) {
+  const { interval, scheduleHour, scheduleMinute } = automation.schedule;
+  const time = formatHourMinute(scheduleHour, scheduleMinute);
+  switch (interval) {
+    case "hourly":
+      return localize("scheduleHourly", "Hourly");
+    case "daily":
+      return localize("scheduleDailyAt", "Daily at {0}", time);
+    case "weekly": {
+      const day = DAYS_OF_WEEK[(automation.schedule.scheduleDay % 7 + 7) % 7];
+      return localize("scheduleWeeklyAt", "{0} at {1}", day, time);
+    }
+    case "manual":
+      return localize("scheduleManual", "Manual");
+    default:
+      return localize("scheduleManual", "Manual");
+  }
+}
+function formatHourMinute(hour, minute) {
+  const date = new Date(Date.UTC(2e3, 0, 1, Math.max(0, Math.min(23, hour | 0)), Math.max(0, Math.min(59, minute | 0))));
+  return date.toLocaleTimeString(void 0, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+}
+function groupRunsByDate(runs) {
+  const now = /* @__PURE__ */ new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const lastWeekStart = new Date(today);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const groups = /* @__PURE__ */ new Map();
+  for (const run of runs) {
+    const t = Date.parse(run.startedAt);
+    if (Number.isNaN(t)) {
+      continue;
+    }
+    const date = new Date(t);
+    const { label, kind, order } = getDateBucket(date, today, yesterday, lastWeekStart);
+    let group = groups.get(label);
+    if (!group) {
+      group = { label, kind, order, runs: [] };
+      groups.set(label, group);
+    }
+    group.runs.push(run);
+  }
+  return [...groups.values()].sort((a, b) => a.order - b.order);
+}
+function getDateBucket(date, today, yesterday, lastWeekStart) {
+  if (date >= today) {
+    return { label: localize("today", "Today"), kind: "today", order: 0 };
+  }
+  if (date >= yesterday) {
+    return { label: localize("yesterday", "Yesterday"), kind: "yesterday", order: 1 };
+  }
+  if (date >= lastWeekStart) {
+    return { label: localize("lastWeek", "Last week"), kind: "week", order: 2 };
+  }
+  const monthLabel = date.toLocaleDateString(void 0, { month: "long", year: "numeric" });
+  const monthIndex = date.getFullYear() * 12 + date.getMonth();
+  const order = 3e4 - monthIndex;
+  return { label: monthLabel, kind: "month", order };
+}
+function runStatusIcon(s) {
+  switch (s) {
+    case "pending":
+      return { iconId: "circle-outline", spin: false };
+    case "running":
+      return { iconId: "sync", spin: true };
+    case "completed":
+      return { iconId: "check", spin: false };
+    case "failed":
+      return { iconId: "error", spin: false };
+  }
+}
+function getRunStatusLabel(status2) {
+  switch (status2) {
+    case "pending":
+      return localize("automationRunPending", "Pending");
+    case "running":
+      return localize("automationRunRunning", "Running");
+    case "completed":
+      return localize("automationRunCompleted", "Completed");
+    case "failed":
+      return localize("automationRunFailed", "Failed");
+  }
+}
+function formatTimestamp(iso, kind) {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) {
+    return iso;
+  }
+  const date = new Date(t);
+  const time = date.toLocaleTimeString(void 0, { hour: "numeric", minute: "2-digit" });
+  switch (kind) {
+    case "today":
+    case "yesterday":
+      return time;
+    case "week":
+      return `${date.toLocaleDateString(void 0, { weekday: "short" })} ${time}`;
+    case "month":
+      return `${date.toLocaleDateString(void 0, { month: "short", day: "numeric" })} ${time}`;
+  }
+}
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+async function showAutomationsDisabled(dialogService) {
+  await dialogService.info(
+    localize("automationsDisabledTitle", "Automations are disabled."),
+    localize("automationsDisabledDetail", "Enable \u201C{0}\u201D to make changes.", CHAT_AUTOMATIONS_ENABLED_SETTING)
+  );
+}
+const AUTOMATIONS_CUSTOM_VIEW_ID = "sessions.customView.automations";
+let AutomationsCustomView = class extends AbstractCustomView {
+  constructor(instantiationService) {
+    super();
+    this.instantiationService = instantiationService;
+    this.title = constObservable(localize("automationsTitle", "Automations"));
+    this.description = constObservable(
+      localize("automationsDescription", "Schedule agent sessions to run automatically on a cadence you choose.")
+    );
+  }
+  render(container) {
+    container.classList.add("automations-cards-content");
+    this._widget = this._register(this.instantiationService.createInstance(AutomationsCardsWidget));
+    container.appendChild(this._widget.element);
+  }
+  layout(width, height) {
+    this._widget?.layout(width, height);
+  }
+  focus() {
+    this._widget?.focus();
+  }
+};
+AutomationsCustomView = __decorateClass([
+  __decorateParam(0, IInstantiationService)
+], AutomationsCustomView);
+let AutomationsCustomViewContribution = class extends Disposable {
+  static {
+    this.ID = "sessions.contrib.automationsCustomView";
+  }
+  constructor(customViewService, actionViewItemService, contextKeyService, automationService) {
+    super();
+    const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
+    this._register(autorun((reader) => {
+      hasItemsContext.set(automationService.automations.read(reader).length > 0);
+    }));
+    this._register(customViewService.registerCustomView({
+      id: AUTOMATIONS_CUSTOM_VIEW_ID,
+      ctor: new SyncDescriptor(AutomationsCustomView),
+      actions: { style: "buttonBar", menuId: Menus.CustomViewAutomations }
+    }));
+    const automationContextKeys = /* @__PURE__ */ new Set([ChatAutomationsEnabledContext.key]);
+    this._register(contextKeyService.onDidChangeContext((event) => {
+      if (event.affectsSome(automationContextKeys) && !contextKeyService.getContextKeyValue(ChatAutomationsEnabledContext.key) && customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
+        customViewService.hideCustomView();
+      }
+    }));
+    this._register(actionViewItemService.register(Menus.CustomViewAutomations, "sessionsView.newAutomation", (action, options, instantiationService) => {
+      if (!(action instanceof MenuItemAction)) {
+        return void 0;
+      }
+      return instantiationService.createInstance(PrimaryButtonActionViewItem, void 0, action, options);
+    }));
+  }
+};
+AutomationsCustomViewContribution = __decorateClass([
+  __decorateParam(0, ICustomViewService),
+  __decorateParam(1, IActionViewItemService),
+  __decorateParam(2, IContextKeyService),
+  __decorateParam(3, IAutomationService)
+], AutomationsCustomViewContribution);
+registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
+class PrimaryButtonActionViewItem extends BaseActionViewItem {
+  constructor(context, action, options) {
+    super(context, action, options);
+  }
+  render(container) {
+    this.element = container;
+    container.classList.add("chat-composite-bar-meta-item");
+    const button = this.button = this._register(new Button(container, { secondary: false, ...defaultButtonStyles }));
+    button.element.classList.add("monaco-text-button", "chat-composite-bar-meta-item-button");
+    this._register(button.onDidClick(() => {
+      if (this._action.enabled) {
+        this.actionRunner.run(this._action, this._context);
+      }
+    }));
+    this.updateLabel();
+    this.updateEnabled();
+  }
+  focus() {
+    this.button?.focus();
+  }
+  blur() {
+    if (this.button) {
+      this.button.element.tabIndex = -1;
+      this.button.element.blur();
+    }
+  }
+  setFocusable(focusable) {
+    if (this.button) {
+      this.button.element.tabIndex = focusable ? 0 : -1;
+    }
+  }
+  updateEnabled() {
+    if (this.button) {
+      this.button.enabled = this._action.enabled;
+    }
+  }
+  updateLabel() {
+    if (!this.button) {
+      return;
+    }
+    DOM.reset(this.button.element, this._action.label);
+  }
+}
+registerAction2(class NewAutomationAction extends Action2 {
+  constructor() {
+    super({
+      id: "sessionsView.newAutomation",
+      title: localize2("newAutomation", "New Automation"),
+      precondition: ChatAutomationsEnabledContext,
+      menu: [{ id: Menus.CustomViewAutomations, group: "navigation", order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }]
+    });
+  }
+  async run(accessor) {
+    const automationDialogService = accessor.get(IAutomationDialogService);
+    const automationService = accessor.get(IAutomationService);
+    const configurationService = accessor.get(IConfigurationService);
+    const dialogService = accessor.get(IDialogService);
+    const logService = accessor.get(ILogService);
+    const isEnabled = () => configurationService.getValue(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+    if (!isEnabled()) {
+      await showAutomationsDisabled(dialogService);
+      return;
+    }
+    const result = await automationDialogService.showAutomationDialog({});
+    if (!result || result.kind !== "create") {
+      return;
+    }
+    if (!isEnabled()) {
+      await showAutomationsDisabled(dialogService);
+      return;
+    }
+    try {
+      await automationService.createAutomation(result.value, () => {
+        if (!isEnabled()) {
+          throw new Error(localize("automationsDisabledBeforeSave", "Automations were disabled before the change could be saved."));
+        }
+      });
+    } catch (err) {
+      logService.error("[Automations] Failed to create automation", err);
+      await dialogService.error(
+        localize("automationCreateFailed", "Failed to create automation."),
+        getErrorMessage(err)
+      );
+    }
+  }
+});
+export {
+  AUTOMATIONS_CUSTOM_VIEW_ID,
+  AutomationsCardsWidget,
+  AutomationsCustomView,
+  AutomationsCustomViewContribution
+};

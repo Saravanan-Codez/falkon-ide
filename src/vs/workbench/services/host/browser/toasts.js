@@ -1,0 +1,58 @@
+import { addDisposableListener } from "../../../../base/browser/dom.js";
+import { CancellationTokenSource } from "../../../../base/common/cancellation.js";
+import { Emitter, Event } from "../../../../base/common/event.js";
+import { DisposableStore, toDisposable } from "../../../../base/common/lifecycle.js";
+async function showBrowserToast(controller, options, token) {
+  const toast = await triggerBrowserToast(options.title, {
+    detail: options.body,
+    sticky: !options.silent
+  });
+  if (!toast) {
+    return { supported: false, clicked: false };
+  }
+  const disposables = new DisposableStore();
+  controller.onDidCreateToast(toast);
+  const cts = new CancellationTokenSource(token);
+  disposables.add(toDisposable(() => {
+    controller.onDidDisposeToast(toast);
+    toast.dispose();
+    cts.dispose(true);
+  }));
+  return new Promise((r) => {
+    const resolve = (result) => {
+      r(result);
+      disposables.dispose();
+    };
+    disposables.add(cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false })));
+    disposables.add(Event.once(toast.onClick)(() => resolve({ supported: true, clicked: true })));
+    disposables.add(Event.once(toast.onClose)(() => resolve({ supported: true, clicked: false })));
+    disposables.add(Event.once(toast.onError)(() => resolve({ supported: false, clicked: false })));
+  });
+}
+async function triggerBrowserToast(message, options) {
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    return;
+  }
+  const disposables = new DisposableStore();
+  const notification = new Notification(message, {
+    body: options?.detail,
+    requireInteraction: options?.sticky
+  });
+  const onClick = disposables.add(new Emitter());
+  const onClose = disposables.add(new Emitter());
+  const onError = disposables.add(new Emitter());
+  disposables.add(addDisposableListener(notification, "click", () => onClick.fire()));
+  disposables.add(addDisposableListener(notification, "close", () => onClose.fire()));
+  disposables.add(addDisposableListener(notification, "error", () => onError.fire()));
+  disposables.add(toDisposable(() => notification.close()));
+  return {
+    onClick: onClick.event,
+    onClose: onClose.event,
+    onError: onError.event,
+    dispose: () => disposables.dispose()
+  };
+}
+export {
+  showBrowserToast
+};
