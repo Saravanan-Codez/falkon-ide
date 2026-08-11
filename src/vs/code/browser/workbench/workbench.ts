@@ -408,6 +408,53 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 	}
 }
 
+/**
+ * Falkon Dev Kit – Deep Link URI Bridge
+ *
+ * Registers `window.__falkon_handle_uri(uri: string)` which the Rust/Tauri layer
+ * calls when the OS delivers a `code-oss://` deep link back to the app after an
+ * OAuth flow (Microsoft, GitHub, Copilot).
+ *
+ * The function parses the URI and writes it into localStorage using the same key
+ * format that LocalStorageURLCallbackProvider.checkCallbacks() polls, so the
+ * existing VS Code callback machinery picks it up transparently.
+ *
+ * Works on Linux (Wayland + X11), macOS, Windows, and all CPU architectures.
+ */
+function registerFalkonDeepLinkBridge(): void {
+	(mainWindow as any).__falkon_handle_uri = (rawUri: string): void => {
+		try {
+			const uri = URI.parse(rawUri);
+			// Extract vscode-reqid from the query string so we can write to the
+			// correct localStorage slot that LocalStorageURLCallbackProvider polls.
+			const params = new URLSearchParams(uri.query);
+			const reqId = params.get('vscode-reqid');
+			if (reqId) {
+				const key = `vscode-web.url-callbacks[${reqId}]`;
+				// Reconstruct a URI component object the provider can revive
+				const uriComponents = {
+					scheme: uri.scheme,
+					authority: uri.authority,
+					path: uri.path,
+					query: uri.query,
+					fragment: uri.fragment,
+				};
+				localStorage.setItem(key, JSON.stringify(uriComponents));
+				// Dispatch a storage event so LocalStorageURLCallbackProvider
+				// picks it up even if the event fires in the same tab.
+				mainWindow.dispatchEvent(new StorageEvent('storage', {
+					key,
+					newValue: JSON.stringify(uriComponents),
+					storageArea: localStorage,
+				}));
+			}
+		} catch (e) {
+			console.error('[Falkon] Failed to handle deep link URI:', e, rawUri);
+		}
+	};
+}
+
+
 class WorkspaceProvider implements IWorkspaceProvider {
 
 	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
@@ -638,4 +685,9 @@ function readCookie(name: string): string | undefined {
 			? undefined /* with a remote without embedder-preferred storage, store on the remote */
 			: new LocalStorageSecretStorageProvider(secretStorageCrypto),
 	});
+
+	// Register the Falkon deep-link bridge AFTER the workbench is created so that
+	// any pending code-oss:// URI delivered by Tauri before DOMContentLoaded is
+	// handled correctly.
+	registerFalkonDeepLinkBridge();
 })();

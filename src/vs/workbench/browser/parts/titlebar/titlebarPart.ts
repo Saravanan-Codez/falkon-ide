@@ -551,9 +551,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			EventHelper.stop(e, true);
 			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
 			if (tauri?.core?.invoke) {
-				tauri.core.invoke('window_minimize');
-			} else if ((window as any).__tauri_window__?.minimize) {
-				(window as any).__tauri_window__.minimize();
+				tauri.core.invoke('window_minimize').catch(console.error);
 			}
 		}));
 
@@ -566,9 +564,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			EventHelper.stop(e, true);
 			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
 			if (tauri?.core?.invoke) {
-				tauri.core.invoke('window_toggle_maximize');
-			} else if ((window as any).__tauri_window__?.toggleMaximize) {
-				(window as any).__tauri_window__.toggleMaximize();
+				tauri.core.invoke('window_toggle_maximize').catch(console.error);
 			}
 		}));
 
@@ -581,9 +577,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			EventHelper.stop(e, true);
 			const tauri = (window as any).__TAURI__ || (globalThis as any).__TAURI__;
 			if (tauri?.core?.invoke) {
-				tauri.core.invoke('window_close');
-			} else if ((window as any).__tauri_window__?.close) {
-				(window as any).__tauri_window__.close();
+				tauri.core.invoke('window_close').catch(console.error);
 			}
 		}));
 

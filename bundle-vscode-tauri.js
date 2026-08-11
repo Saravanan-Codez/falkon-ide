@@ -2,6 +2,14 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Files to exclude from CSS collection (previously generated output files that
+// cause a recursive bundling loop and blow up the CSS size to 70+ MB)
+const EXCLUDED_CSS_FILES = new Set([
+  path.resolve('src/vs/code/browser/workbench/workbench.css'),
+  path.resolve('src/dist/workbench.css'),
+  path.resolve('src/dist/all-components.css'),
+]);
+
 function findFiles(dir, ext, fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
   const items = fs.readdirSync(dir, { withFileTypes: true });
@@ -12,7 +20,10 @@ function findFiles(dir, ext, fileList = []) {
         findFiles(fullPath, ext, fileList);
       }
     } else if (item.isFile() && item.name.endsWith(ext)) {
-      fileList.push(fullPath);
+      // Skip any previously bundled output files to prevent recursive inclusion
+      if (!EXCLUDED_CSS_FILES.has(path.resolve(fullPath))) {
+        fileList.push(fullPath);
+      }
     }
   }
   return fileList;
@@ -24,6 +35,16 @@ async function bundleTauriVSCode() {
 
   if (!fs.existsSync('src/dist')) {
     fs.mkdirSync('src/dist', { recursive: true });
+  }
+
+  // Remove stale output CSS files before bundling to prevent recursive inclusion
+  const staleFiles = [
+    'src/dist/workbench.css',
+    'src/dist/all-components.css',
+    'src/vs/code/browser/workbench/workbench.css',
+  ];
+  for (const f of staleFiles) {
+    if (fs.existsSync(f)) fs.unlinkSync(f);
   }
 
   try {
@@ -54,6 +75,7 @@ async function bundleTauriVSCode() {
       platform: 'browser',
       tsconfig: 'tsconfig.json',
       plugins: [preferTsPlugin],
+      minify: true,
       banner: {
         js: `// VS Code Web Workbench bundle (Tauri edition)\n`,
       },
@@ -111,6 +133,7 @@ async function bundleTauriVSCode() {
       entryPoints: ['src/dist/all-components.css'],
       bundle: true,
       outfile: 'src/dist/workbench.css',
+      minify: true,
       loader: {
         '.ttf': 'dataurl',
         '.woff': 'dataurl',

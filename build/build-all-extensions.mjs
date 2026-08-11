@@ -71,7 +71,13 @@ async function buildAllExtensions() {
           platform: 'node',
           format: 'cjs',
           packages: 'external',
-          external: ['../node_modules/find-yarn-workspace-root'],
+          external: [
+            'vscode',
+            'electron',
+            'vscode-sqlite3',
+            'fsevents',
+            '../node_modules/find-yarn-workspace-root'
+          ],
           target: ['node20'],
           sourcemap: true,
           logLevel: 'warning'

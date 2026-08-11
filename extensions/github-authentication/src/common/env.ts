@@ -12,10 +12,8 @@ const VALID_DESKTOP_CALLBACK_SCHEMES = [
 	'vscode-agents',
 	'vscode-agents-insiders',
 	'vscode-agents-exploration',
-	// On Windows, some browsers don't seem to redirect back to OSS properly.
-	// As a result, you get stuck in the auth flow. We exclude this from the
-	// list until we can figure out a way to fix this behavior in browsers.
-	// 'code-oss',
+	// code-oss is the Falkon Dev Kit (VS Code OSS build)
+	'code-oss',
 	'vscode-wsl',
 ];
 
@@ -25,7 +23,10 @@ export function isSupportedClient(uri: Uri): boolean {
 		// vscode.dev & insiders.vscode.dev
 		/(?:^|\.)vscode\.dev$/.test(uri.authority) ||
 		// github.dev & codespaces
-		/(?:^|\.)github\.dev$/.test(uri.authority)
+		/(?:^|\.)github\.dev$/.test(uri.authority) ||
+		// localhost / loopback (Falkon Dev Kit web server)
+		/^localhost(:\d+)?$/.test(uri.authority) ||
+		/^127\.0\.0\.1(:\d+)?$/.test(uri.authority)
 	);
 }
 

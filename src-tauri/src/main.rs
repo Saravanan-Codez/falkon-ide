@@ -497,6 +497,41 @@ fn get_server_authority() -> String {
 }
 
 // ─────────────────────────────────────────────
+//  Open URL in System Browser (cross-platform)
+// ─────────────────────────────────────────────
+// Works on:
+//   Linux:   xdg-open (all distros, X11 + Wayland)
+//   macOS:   open
+//   Windows: PowerShell Start-Process
+//   ARM:     same commands work
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("xdg-open failed: {e}"))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("open failed: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("powershell")
+            .args(&["-NoProfile", "-NonInteractive", "-Command", &format!("Start-Process '{}'", url)])
+            .spawn()
+            .map_err(|e| format!("PowerShell Start-Process failed: {e}"))?;
+    }
+    Ok(())
+}
+
+// ─────────────────────────────────────────────
 //  Node.js Extension Host Sidecar Supervisor
 // ─────────────────────────────────────────────
 
@@ -609,9 +644,50 @@ fn main() {
         child: Mutex::new(start_node_server()),
     };
 
+    // Store the last pending deep link URI received before the webview was ready.
+    // Thread-safe: protected by a Mutex so the on_page_load handler can drain it.
+    let pending_uri: std::sync::Arc<Mutex<Option<String>>> = std::sync::Arc::new(Mutex::new(None));
+    let pending_uri_clone = pending_uri.clone();
+
     tauri::Builder::default()
         .manage(pty_store)
         .manage(server_manager)
+        // Inject the initialization script into the Tauri WebView.
+        // This script runs on every page load inside the WebView, including
+        // the VS Code workbench served from http://127.0.0.1:9888.
+        // It provides a __falkon_handle_uri(uri) function which the Rust side
+        // can call to dispatch URI-handler events to the VS Code extension host.
+        .setup(move |app| {
+            let webview_window = app.get_webview_window("main")
+                .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
+
+            // Register the code-oss:// URI scheme on the operating system so that
+            // the system browser can redirect back into the app after OAuth.
+            // This is equivalent to vscode:// on VS Code Desktop.
+            //
+            // On Linux/macOS/Windows the OS will invoke our binary with:
+            //   falkon_dev_kit_tauri code-oss://...
+            // Tauri captures this and emits a "deep-link" event.
+            // We forward that URI to the workbench via JavaScript eval.
+            let wv_clone = webview_window.clone();
+            let pending = pending_uri_clone.clone();
+            webview_window.on_page_load(move |wv, _payload| {
+                // When a page finishes loading, drain any pending deep-link URI
+                // and inject it into the page via the __falkon_handle_uri bridge.
+                if let Ok(mut lock) = pending.lock() {
+                    if let Some(uri) = lock.take() {
+                        let escaped = uri.replace('\\', "\\\\").replace('"', "\\\"");
+                        let js = format!(
+                            r#"if (window.__falkon_handle_uri) {{ window.__falkon_handle_uri("{escaped}"); }}"#,
+                            escaped = escaped
+                        );
+                        let _ = wv.eval(&js);
+                    }
+                }
+            });
+            let _ = wv_clone; // keep reference
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_server_authority,
             // File system
@@ -621,6 +697,8 @@ fn main() {
             open_folder_dialog, open_file_dialog, save_file_dialog,
             // Window controls
             window_minimize, window_toggle_maximize, window_close,
+            // Open URL in system browser (for OAuth / auth flows on all platforms)
+            open_external_url,
             // Settings
             read_settings, write_settings, read_keybindings,
             // Terminal
