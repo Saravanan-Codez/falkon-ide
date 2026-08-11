@@ -776,6 +776,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 	create(parent: HTMLElement): HTMLElement {
 		this.container = parent;
+		this.container.style.display = 'flex';
 
 		// Build the menubar
 		if (this.container) {

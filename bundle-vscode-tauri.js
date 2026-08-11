@@ -27,6 +27,22 @@ async function bundleTauriVSCode() {
   }
 
   try {
+    // Prefer .ts over .js when importing
+    const preferTsPlugin = {
+      name: 'prefer-ts',
+      setup(build) {
+        build.onResolve({ filter: /\.js$/ }, args => {
+          if (args.path.startsWith('.')) {
+            const dir = args.resolveDir;
+            const tsPath = path.resolve(dir, args.path.replace(/\.js$/, '.ts'));
+            if (fs.existsSync(tsPath)) {
+              return { path: tsPath };
+            }
+          }
+        });
+      }
+    };
+
     // 1. Bundle JavaScript Workbench
     console.log('   - Bundling workbench.ts (browser launcher)...');
     await esbuild.build({
@@ -37,6 +53,7 @@ async function bundleTauriVSCode() {
       target: 'es2022',
       platform: 'browser',
       tsconfig: 'tsconfig.json',
+      plugins: [preferTsPlugin],
       banner: {
         js: `// VS Code Web Workbench bundle (Tauri edition)\n`,
       },
