@@ -164,6 +164,21 @@ async function bundleTauriVSCode() {
       fs.writeFileSync('src/nls.messages.json', '{}\n');
     }
 
+    // Populate minimal dist/ directory for Tauri frontendDist
+    fs.mkdirSync('dist/dist', { recursive: true });
+    fs.mkdirSync('dist/js', { recursive: true });
+    fs.mkdirSync('dist/out/vs/code/browser/workbench', { recursive: true });
+    fs.copyFileSync('src/dist/workbench.js', 'dist/dist/workbench.js');
+    fs.copyFileSync('src/dist/workbench.css', 'dist/dist/workbench.css');
+    fs.copyFileSync('src/dist/workbench.js', 'dist/out/vs/code/browser/workbench/workbench.js');
+    fs.copyFileSync('src/dist/workbench.css', 'dist/out/vs/code/browser/workbench/workbench.css');
+    if (fs.existsSync('src/js/tauri-shim.js')) {
+      fs.copyFileSync('src/js/tauri-shim.js', 'dist/js/tauri-shim.js');
+    }
+    if (fs.existsSync('src/resources')) {
+      fs.cpSync('src/resources', 'dist/resources', { recursive: true });
+    }
+
     // Mirror necessary runtime assets and fallback stubs for cross-platform VS Code Workbench
     const keyboardLayoutsDir = 'out/vs/workbench/services/keybinding/browser/keyboardLayouts';
     fs.mkdirSync(keyboardLayoutsDir, { recursive: true });
