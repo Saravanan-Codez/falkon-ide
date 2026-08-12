@@ -179,40 +179,99 @@ async function bundleTauriVSCode() {
       fs.cpSync('src/resources', 'dist/resources', { recursive: true });
     }
 
-    // Generate dist/index.html entrypoint for Tauri
+    // Generate dist/index.html entrypoint for Tauri (standalone, no server required)
     const indexHtmlContent = `<!DOCTYPE html>
-<html>
+<html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-title" content="Falkon IDE">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;remoteAuthority&quot;:&quot;127.0.0.1:9888&quot;,&quot;callbackRoute&quot;:&quot;/callback&quot;,&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;}}">
-		<meta id="vscode-workbench-auth-session" data-settings="">
+		<title>Falkon IDE</title>
 		<link rel="stylesheet" href="./dist/workbench.css">
 		<style>
 			html, body {
-				width: 100%;
-				height: 100%;
-				margin: 0;
-				padding: 0;
+				width: 100%; height: 100%;
+				margin: 0; padding: 0;
 				overflow: hidden;
-				background-color: #181818 !important;
+				background-color: #1e1e1e;
 				color: #cccccc;
 			}
 		</style>
 	</head>
 	<body class="vs-dark" aria-label="">
+		<div id="workbench-container"></div>
+		<script>
+			// Required by VS Code resource loader
+			const _base = new URL('.', window.location.href).href;
+			globalThis._VSCODE_FILE_ROOT = _base;
+			self._VSCODE_FILE_ROOT = _base;
+		</script>
+		<script type="module" src="./js/tauri-shim.js"></script>
+		<script type="module">
+			import { create } from './dist/workbench.js';
+
+			window.addEventListener('error', e => console.error('[VSCode]', e.error || e.message));
+			window.addEventListener('unhandledrejection', e => console.error('[VSCode Rejection]', e.reason));
+
+			// Restore last opened folder from localStorage
+			const lastFolder = localStorage.getItem('falkon-last-folder');
+			const workspace = lastFolder ? {
+				folderUri: {
+					scheme: 'file',
+					path: (navigator.platform.startsWith('Win') && !lastFolder.startsWith('/'))
+						? '/' + lastFolder.replace(/\\\\/g, '/')
+						: lastFolder,
+					authority: '', query: '', fragment: ''
+				}
+			} : undefined;
+
+			const workbenchEl = document.getElementById('workbench-container') || document.body;
+
+			create(workbenchEl, {
+				productConfiguration: {
+					nameShort: 'Falkon IDE',
+					nameLong: 'Falkon IDE',
+					applicationName: 'falkon-ide',
+					dataFolderName: '.falkon-ide',
+					licenseName: 'MIT',
+					version: '1.133.0',
+				},
+				workspaceProvider: {
+					workspace,
+					trusted: true,
+					open: async (ws) => {
+						if (ws?.folderUri) {
+							const p = ws.folderUri.path.replace(/^\\/([A-Z]:)/, '$1').replace(/\\//g, '\\\\\\\\');
+							localStorage.setItem('falkon-last-folder', p);
+						}
+						window.location.reload();
+						return true;
+					}
+				},
+				commands: [
+					{
+						id: 'falkon.openFolder',
+						label: 'Open Folder...',
+						handler: async () => {
+							const path = await window.__tauri_dialogs__?.openFolder();
+							if (!path) return;
+							localStorage.setItem('falkon-last-folder', path);
+							window.location.reload();
+						}
+					}
+				],
+				configurationDefaults: {
+					'workbench.colorTheme': 'Default Dark Modern',
+					'editor.fontFamily': '"Cascadia Code", "Fira Code", Consolas, monospace',
+					'editor.fontSize': 14,
+					'files.autoSave': 'afterDelay',
+				},
+				enableWorkspaceTrust: false,
+			});
+		</script>
 	</body>
-	<script>
-		const baseUrl = new URL('.', window.location.origin).toString();
-		globalThis._VSCODE_FILE_ROOT = baseUrl + 'out/';
-	</script>
-	<script type="module" src="./js/tauri-shim.js"></script>
-	<script type="module" src="./dist/workbench.js"></script>
 </html>
 `;
+
     fs.writeFileSync('dist/index.html', indexHtmlContent);
 
     // Mirror necessary runtime assets and fallback stubs for cross-platform VS Code Workbench
