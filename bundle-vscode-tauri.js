@@ -300,6 +300,7 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 
 
     fs.writeFileSync('dist/index.html', indexHtmlContent);
+    fs.writeFileSync('src/index.html', indexHtmlContent);
 
     // Mirror necessary runtime assets and fallback stubs for cross-platform VS Code Workbench
     const keyboardLayoutsDir = 'out/vs/workbench/services/keybinding/browser/keyboardLayouts';

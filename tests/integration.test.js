@@ -47,4 +47,12 @@ describe('Integration & Bundle Verification', () => {
       assert.strictEqual(fs.existsSync(p), true, `Extension ${ext}/package.json must exist in dist/extensions`);
     }
   });
+
+  it('dist/index.html and src/index.html must not contain legacy 127.0.0.1:9888 redirect code', () => {
+    const distHtml = fs.readFileSync(path.resolve('dist/index.html'), 'utf8');
+    const srcHtml = fs.readFileSync(path.resolve('src/index.html'), 'utf8');
+
+    assert.strictEqual(distHtml.includes('127.0.0.1:9888'), false, 'dist/index.html must not reference 127.0.0.1:9888');
+    assert.strictEqual(srcHtml.includes('127.0.0.1:9888'), false, 'src/index.html must not reference 127.0.0.1:9888');
+  });
 });
