@@ -11,6 +11,7 @@ const extensionConfigs = [
   { dir: 'github', entries: { 'out/extension.js': 'src/extension.ts' } },
   { dir: 'github-authentication', entries: { 'out/extension.js': 'src/extension.ts' } },
   { dir: 'microsoft-authentication', entries: { 'out/extension.js': 'src/extension.ts' } },
+  { dir: 'copilot', entries: { 'dist/extension.js': 'src/extension.ts', 'dist/extension.browser.js': 'src/extension.browser.ts' } },
 
   // Languages & IntelliSense
   { dir: 'typescript-language-features', entries: { 'out/extension.js': 'src/extension.ts', 'out/extension.browser.js': 'src/extension.browser.ts' } },

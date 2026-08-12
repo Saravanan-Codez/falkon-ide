@@ -1,33 +1,55 @@
-# Upstream VS Code Update & Release Sync Workflow
+# Battle-Tested Upstream & Release Update Strategy
 
-This document defines the official branch strategy and workflow for incorporating upstream VS Code updates from `microsoft/vscode`.
+This document details the two update cycles for Falkon DevKit:
+1. **Upstream Sync Cycle:** Incorporating new releases from `microsoft/vscode`.
+2. **End-User In-App Auto-Update Cycle:** Delivering native desktop app updates to installed users.
 
-## Branch Strategy
+---
 
-- **`dev-updates`**: Isolated branch used to fetch and integrate upstream release tags/commits from `microsoft/vscode`.
-- **`dev`**: Active integration branch where pull requests from `dev-updates` are tested and validated.
-- **`main`**: Stable production release branch.
+## 1. Upstream VS Code Update Cycle (`microsoft/vscode` -> Falkon DevKit)
 
-## Update Workflow Steps
+### 🛡️ Why This Strategy is Battle-Proof
+- **Isolated Sandbox Branch (`dev-updates`):** Upstream merges occur strictly in `dev-updates`. Broken commits or upstream breaking changes **never** reach your active development code (`dev`) or production releases (`main`).
+- **Decoupled Tauri IPC Layer:** Our Tauri bridges ([bundle-vscode-tauri.js](file:///C:/Users/vbox/Falkon_Dev_Kit/bundle-vscode-tauri.js), [src/js/tauri-shim.js](file:///C:/Users/vbox/Falkon_Dev_Kit/src/js/tauri-shim.js), [src-tauri/](file:///C:/Users/vbox/Falkon_Dev_Kit/src-tauri/)) run on top of VS Code's web workbench API contracts. Upstream updates to core editors or workbench components do not wipe out Tauri IPC bridges.
+- **Automated Guarding & Validation:** `npm run sync-upstream` guards against dirty working trees, auto-stashes local edits, merges upstream tags, rebuilds extensions/workbench bundles, and verifies Rust native backend compilation automatically.
 
-### 1. Fetch & Merge Upstream
-Run the automated sync tool:
+### 📋 Upstream Sync Execution
 ```bash
-npm run sync-upstream [optional-tag-or-branch]
+# Sync latest upstream main or specific release tag (e.g. 1.133.0)
+npm run sync-upstream [tag]
 ```
-*Example: `npm run sync-upstream 1.133.0`*
 
-This script automatically:
-1. Adds `https://github.com/microsoft/vscode.git` as `upstream` remote if not present.
-2. Checks out or creates the `dev-updates` branch.
-3. Merges the upstream release into `dev-updates`.
-4. Executes `npm install`, `npm run bundle-vs`, and `cargo check --manifest-path src-tauri/Cargo.toml`.
+### 🚦 Promotion Workflow
+```
+  upstream/main (microsoft/vscode)
+         │
+         ▼ (npm run sync-upstream)
+    dev-updates (Isolated Sandbox & Automated Verification)
+         │
+         ▼ (Pull Request)
+       dev      (Battle-Testing Environment)
+         │
+         ▼ (Verified Promotion)
+      main      (Production Stable Release)
+```
 
-### 2. Pull Request to `dev`
-Once `dev-updates` passes local builds:
-1. Push `dev-updates`: `git push origin dev-updates`
-2. Create a Pull Request targeting the **`dev`** branch.
-3. Perform battle-testing in the PR environment.
+---
 
-### 3. Promotion to `main`
-Once testing on `dev` succeeds, create a PR or merge `dev` -> **`main`**.
+## 2. End-User In-App Auto-Update Cycle (App -> End Users)
+
+Falkon DevKit supports native in-app auto-updates for installed end-users via **Tauri v2 Plugin Updater** (`@tauri-apps/plugin-updater`).
+
+### 📦 How End-User Auto-Updating Works
+1. **GitHub Releases Integration:** Every build uploaded to GitHub Releases generates a signed installer (`.msi` / `.exe` / `.dmg` / `.AppImage`) and signature file (`.sig`).
+2. **Release Manifest (`latest.json`):** GitHub Releases hosts `latest.json` containing version numbers, release notes, download links, and cryptographic signatures.
+3. **Native Background Check:** When users launch Falkon DevKit, Tauri checks `latest.json`. If a new version is available, it prompts the user, downloads the update delta in the background, and seamlessly applies the update on restart.
+
+---
+
+## 🛠️ Validation Checklist
+Before merging `dev-updates` -> `dev`:
+- [ ] `npm run bundle-vs` builds cleanly without ESBuild errors.
+- [ ] `cargo check --manifest-path src-tauri/Cargo.toml` returns zero Rust errors.
+- [ ] `npm run dev` launches and connects to Node.js sidecar server.
+- [ ] `File -> Open Folder...` opens native OS file manager.
+- [ ] Titlebar Minimize, Maximize/Restore, and Close buttons function.

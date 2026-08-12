@@ -32,11 +32,17 @@ export class TauriFileDialogService extends AbstractFileDialogService implements
 		return undefined;
 	}
 
+	private openFolderInWorkspace(path: string) {
+		const url = new URL(window.location.href);
+		url.searchParams.set('folder', path);
+		window.location.href = url.toString();
+	}
+
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		if (this.tauriDialogs) {
 			const path = await this.tauriDialogs.openFolder();
 			if (path) {
-				await this.hostService.openWindow([{ folderUri: URI.file(path) }], { forceReuseWindow: true });
+				this.openFolderInWorkspace(path);
 			}
 			return;
 		}
@@ -67,7 +73,7 @@ export class TauriFileDialogService extends AbstractFileDialogService implements
 		if (this.tauriDialogs) {
 			const path = await this.tauriDialogs.openFolder();
 			if (path) {
-				await this.hostService.openWindow([{ folderUri: URI.file(path) }], { forceReuseWindow: true });
+				this.openFolderInWorkspace(path);
 			}
 			return;
 		}
@@ -79,7 +85,7 @@ export class TauriFileDialogService extends AbstractFileDialogService implements
 		if (this.tauriDialogs) {
 			const path = await this.tauriDialogs.openFolder();
 			if (path) {
-				await this.hostService.openWindow([{ folderUri: URI.file(path) }], { forceReuseWindow: true });
+				this.openFolderInWorkspace(path);
 			}
 			return;
 		}

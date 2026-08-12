@@ -29,92 +29,98 @@ type PtyStore = Mutex<HashMap<String, PtySession>>;
 // ─────────────────────────────────────────────
 
 #[tauri::command]
-fn read_file(file_path: String) -> Result<String, String> {
-    fs::read_to_string(&file_path).map_err(|e| e.to_string())
+async fn read_file(file_path: String) -> Result<String, String> {
+    tokio::fs::read_to_string(&file_path).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn write_file(file_path: String, content: String) -> Result<bool, String> {
+async fn write_file(file_path: String, content: String) -> Result<bool, String> {
     if let Some(parent) = Path::new(&file_path).parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
     }
-    fs::write(&file_path, content).map(|_| true).map_err(|e| e.to_string())
+    tokio::fs::write(&file_path, content).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn read_dir(dir_path: String) -> Result<serde_json::Value, String> {
-    let entries = fs::read_dir(&dir_path).map_err(|e| e.to_string())?;
-    let mut vec = Vec::new();
-    for entry in entries {
-        let e = entry.map_err(|er| er.to_string())?;
-        let meta = e.metadata().map_err(|er| er.to_string())?;
-        vec.push(json!({
-            "name": e.file_name().to_string_lossy(),
+async fn read_dir(dir_path: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let entries = fs::read_dir(&dir_path).map_err(|e| e.to_string())?;
+        let mut vec = Vec::new();
+        for entry in entries {
+            let e = entry.map_err(|er| er.to_string())?;
+            let meta = e.metadata().map_err(|er| er.to_string())?;
+            vec.push(json!({
+                "name": e.file_name().to_string_lossy(),
+                "isDirectory": meta.is_dir(),
+                "isFile": meta.is_file(),
+                "isSymlink": meta.file_type().is_symlink(),
+                "size": meta.len(),
+                "mtime": meta.modified().ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64)
+            }));
+        }
+        Ok(json!(vec))
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn stat_file(file_path: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let meta = fs::metadata(&file_path).map_err(|e| e.to_string())?;
+        Ok(json!({
             "isDirectory": meta.is_dir(),
             "isFile": meta.is_file(),
             "isSymlink": meta.file_type().is_symlink(),
             "size": meta.len(),
             "mtime": meta.modified().ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64),
+            "ctime": meta.created().ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64)
-        }));
-    }
-    Ok(json!(vec))
+        }))
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn stat_file(file_path: String) -> Result<serde_json::Value, String> {
-    let meta = fs::metadata(&file_path).map_err(|e| e.to_string())?;
-    Ok(json!({
-        "isDirectory": meta.is_dir(),
-        "isFile": meta.is_file(),
-        "isSymlink": meta.file_type().is_symlink(),
-        "size": meta.len(),
-        "mtime": meta.modified().ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as u64),
-        "ctime": meta.created().ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as u64)
-    }))
+async fn file_exists(file_path: String) -> bool {
+    tokio::task::spawn_blocking(move || Path::new(&file_path).exists()).await.unwrap_or(false)
 }
 
 #[tauri::command]
-fn file_exists(file_path: String) -> bool {
-    Path::new(&file_path).exists()
+async fn create_dir(dir_path: String) -> Result<bool, String> {
+    tokio::fs::create_dir_all(&dir_path).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn create_dir(dir_path: String) -> Result<bool, String> {
-    fs::create_dir_all(&dir_path).map(|_| true).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn rename_file(old_path: String, new_path: String) -> Result<bool, String> {
+async fn rename_file(old_path: String, new_path: String) -> Result<bool, String> {
     if let Some(parent) = Path::new(&new_path).parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
     }
-    fs::rename(&old_path, &new_path).map(|_| true).map_err(|e| e.to_string())
+    tokio::fs::rename(&old_path, &new_path).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn create_temp_file(content: String) -> Result<String, String> {
+async fn create_temp_file(content: String) -> Result<String, String> {
     let mut path = std::env::temp_dir();
     let file_name = format!("falkon_{}.tmp", chrono::Utc::now().timestamp_millis());
     path.push(file_name);
     let p = path.to_string_lossy().to_string();
-    fs::write(&p, content).map_err(|e| e.to_string())?;
+    tokio::fs::write(&p, content).await.map_err(|e| e.to_string())?;
     Ok(p)
 }
 
 #[tauri::command]
-fn delete_file(file_path: String) -> Result<bool, String> {
-    let path = Path::new(&file_path);
-    if path.is_dir() {
-        fs::remove_dir_all(path).map(|_| true).map_err(|e| e.to_string())
-    } else {
-        fs::remove_file(path).map(|_| true).map_err(|e| e.to_string())
-    }
+async fn delete_file(file_path: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = Path::new(&file_path);
+        if path.is_dir() {
+            fs::remove_dir_all(path).map(|_| true).map_err(|e| e.to_string())
+        } else {
+            fs::remove_file(path).map(|_| true).map_err(|e| e.to_string())
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 // ─────────────────────────────────────────────
@@ -296,7 +302,7 @@ fn terminal_kill(state: tauri::State<PtyStore>, id: String) -> Result<(), String
 // ─────────────────────────────────────────────
 
 #[tauri::command]
-fn search_text(
+async fn search_text(
     workspace: String,
     pattern: String,
     include: Option<String>,
@@ -304,36 +310,40 @@ fn search_text(
     case_sensitive: Option<bool>,
     max_results: Option<usize>,
 ) -> Result<serde_json::Value, String> {
-    let rg = if cfg!(windows) { "rg.exe" } else { "rg" };
-    let mut cmd = std::process::Command::new(rg);
-    cmd.arg("--json").arg("--max-count").arg("100");
-    if !case_sensitive.unwrap_or(false) {
-        cmd.arg("-i");
-    }
-    if let Some(inc) = include {
-        cmd.arg("-g").arg(inc);
-    }
-    if let Some(exc) = exclude {
-        cmd.arg("--glob").arg(format!("!{}", exc));
-    }
-    cmd.arg(&pattern).arg(&workspace);
+    tokio::task::spawn_blocking(move || {
+        let rg = if cfg!(windows) { "rg.exe" } else { "rg" };
+        let mut cmd = std::process::Command::new(rg);
+        cmd.arg("--json").arg("--max-count").arg("100");
+        if !case_sensitive.unwrap_or(false) {
+            cmd.arg("-i");
+        }
+        if let Some(inc) = include {
+            cmd.arg("-g").arg(inc);
+        }
+        if let Some(exc) = exclude {
+            cmd.arg("--glob").arg(format!("!{}", exc));
+        }
+        cmd.arg(&pattern).arg(&workspace);
 
-    let out = cmd.output().map_err(|e| format!("ripgrep not found: {}", e))?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let results: Vec<serde_json::Value> = stdout
-        .lines()
-        .filter_map(|l| serde_json::from_str(l).ok())
-        .filter(|v: &serde_json::Value| v["type"] == "match")
-        .take(max_results.unwrap_or(500))
-        .collect();
-    Ok(json!(results))
+        let out = cmd.output().map_err(|e| format!("ripgrep not found: {}", e))?;
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let results: Vec<serde_json::Value> = stdout
+            .lines()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .filter(|v: &serde_json::Value| v["type"] == "match")
+            .take(max_results.unwrap_or(500))
+            .collect();
+        Ok(json!(results))
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn search_files(workspace: String, pattern: String) -> Result<serde_json::Value, String> {
-    let mut results = Vec::new();
-    search_files_recursive(Path::new(&workspace), &pattern.to_lowercase(), &mut results, 0);
-    Ok(json!(results))
+async fn search_files(workspace: String, pattern: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let mut results = Vec::new();
+        search_files_recursive(Path::new(&workspace), &pattern.to_lowercase(), &mut results, 0);
+        Ok(json!(results))
+    }).await.map_err(|e| e.to_string())?
 }
 
 fn search_files_recursive(dir: &Path, pattern: &str, results: &mut Vec<String>, depth: usize) {
@@ -371,75 +381,97 @@ fn git_cmd(args: &[&str], cwd: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn git_branch(cwd: Option<String>) -> Result<Option<String>, String> {
-    let dir = cwd.unwrap_or_else(|| ".".to_string());
-    let s = git_cmd(&["branch", "--show-current"], &dir)?;
-    let s = s.trim().to_string();
-    if s.is_empty() { Ok(None) } else { Ok(Some(s)) }
+async fn git_branch(cwd: Option<String>) -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let dir = cwd.unwrap_or_else(|| ".".to_string());
+        let s = git_cmd(&["branch", "--show-current"], &dir)?;
+        let s = s.trim().to_string();
+        if s.is_empty() { Ok(None) } else { Ok(Some(s)) }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_status(cwd: Option<String>) -> Result<String, String> {
-    git_cmd(&["status", "--porcelain"], &cwd.unwrap_or_else(|| ".".to_string()))
+async fn git_status(cwd: Option<String>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["status", "--porcelain"], &cwd.unwrap_or_else(|| ".".to_string()))
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_is_repo(cwd: Option<String>) -> bool {
-    Command::new("git")
-        .args(["rev-parse", "--git-dir"])
-        .current_dir(cwd.unwrap_or_else(|| ".".to_string()))
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+async fn git_is_repo(cwd: Option<String>) -> bool {
+    tokio::task::spawn_blocking(move || {
+        Command::new("git")
+            .args(["rev-parse", "--git-dir"])
+            .current_dir(cwd.unwrap_or_else(|| ".".to_string()))
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }).await.unwrap_or(false)
 }
 
 #[tauri::command]
-fn git_log(cwd: String, max: Option<usize>) -> Result<String, String> {
-    let n = max.unwrap_or(50).to_string();
-    git_cmd(&["log", "--oneline", &format!("-{}", n)], &cwd)
+async fn git_log(cwd: String, max: Option<usize>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let n = max.unwrap_or(50).to_string();
+        git_cmd(&["log", "--oneline", &format!("-{}", n)], &cwd)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_diff(cwd: String, staged: Option<bool>) -> Result<String, String> {
-    if staged.unwrap_or(false) {
-        git_cmd(&["diff", "--cached"], &cwd)
-    } else {
-        git_cmd(&["diff"], &cwd)
-    }
+async fn git_diff(cwd: String, staged: Option<bool>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        if staged.unwrap_or(false) {
+            git_cmd(&["diff", "--cached"], &cwd)
+        } else {
+            git_cmd(&["diff"], &cwd)
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_stage(cwd: String, path: String) -> Result<bool, String> {
-    git_cmd(&["add", &path], &cwd).map(|_| true)
+async fn git_stage(cwd: String, path: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["add", &path], &cwd).map(|_| true)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_unstage(cwd: String, path: String) -> Result<bool, String> {
-    git_cmd(&["restore", "--staged", &path], &cwd).map(|_| true)
+async fn git_unstage(cwd: String, path: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["restore", "--staged", &path], &cwd).map(|_| true)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_commit(cwd: String, message: String) -> Result<bool, String> {
-    git_cmd(&["commit", "-m", &message], &cwd).map(|_| true)
+async fn git_commit(cwd: String, message: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["commit", "-m", &message], &cwd).map(|_| true)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_push(cwd: String) -> Result<String, String> {
-    git_cmd(&["push"], &cwd)
+async fn git_push(cwd: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["push"], &cwd)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_pull(cwd: String) -> Result<String, String> {
-    git_cmd(&["pull"], &cwd)
+async fn git_pull(cwd: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["pull"], &cwd)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_checkout(cwd: String, branch: String, create: Option<bool>) -> Result<bool, String> {
-    if create.unwrap_or(false) {
-        git_cmd(&["checkout", "-b", &branch], &cwd).map(|_| true)
-    } else {
-        git_cmd(&["checkout", &branch], &cwd).map(|_| true)
-    }
+async fn git_checkout(cwd: String, branch: String, create: Option<bool>) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        if create.unwrap_or(false) {
+            git_cmd(&["checkout", "-b", &branch], &cwd).map(|_| true)
+        } else {
+            git_cmd(&["checkout", &branch], &cwd).map(|_| true)
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 // ─────────────────────────────────────────────
@@ -684,16 +716,16 @@ fn main() {
             let webview_window = app.get_webview_window("main")
                 .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
 
-            // Register the code-oss:// URI scheme on the operating system so that
-            // the system browser can redirect back into the app after OAuth.
-            // This is equivalent to vscode:// on VS Code Desktop.
-            //
-            // On Linux/macOS/Windows the OS will invoke our binary with:
-            //   falkon_dev_kit_tauri code-oss://...
-            // Tauri captures this and emits a "deep-link" event.
-            // We forward that URI to the workbench via JavaScript eval.
-            let wv_clone = webview_window.clone();
-            let _ = wv_clone; // keep reference
+            // Parse incoming CLI args for OAuth deep-link callback URLs
+            let args: Vec<String> = std::env::args().collect();
+            for arg in args {
+                if arg.starts_with("code-oss://") || arg.starts_with("vscode://") {
+                    let escaped = arg.replace('\\', "\\\\").replace('"', "\\\"");
+                    let js = format!("window.__falkon_handle_uri && window.__falkon_handle_uri(\"{escaped}\");");
+                    let _ = webview_window.eval(&js);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

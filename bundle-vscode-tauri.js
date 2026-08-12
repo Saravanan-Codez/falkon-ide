@@ -179,6 +179,42 @@ async function bundleTauriVSCode() {
       fs.cpSync('src/resources', 'dist/resources', { recursive: true });
     }
 
+    // Generate dist/index.html entrypoint for Tauri
+    const indexHtmlContent = `<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Code">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
+		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
+		<link rel="stylesheet" href="./dist/workbench.css">
+		<style>
+			html, body {
+				width: 100%;
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				overflow: hidden;
+				background-color: #181818 !important;
+				color: #cccccc;
+			}
+		</style>
+	</head>
+	<body class="vs-dark" aria-label="">
+	</body>
+	<script>
+		const baseUrl = new URL('.', window.location.origin).toString();
+		globalThis._VSCODE_FILE_ROOT = baseUrl + 'out/';
+	</script>
+	<script type="module" src="./js/tauri-shim.js"></script>
+	<script type="module" src="./dist/workbench.js"></script>
+</html>
+`;
+    fs.writeFileSync('dist/index.html', indexHtmlContent);
+
     // Mirror necessary runtime assets and fallback stubs for cross-platform VS Code Workbench
     const keyboardLayoutsDir = 'out/vs/workbench/services/keybinding/browser/keyboardLayouts';
     fs.mkdirSync(keyboardLayoutsDir, { recursive: true });
@@ -207,7 +243,21 @@ async function bundleTauriVSCode() {
       );
     }
 
-    // VSDA stubs to prevent 404 log noise in extension host
+    // VSDA stubs to prevent require('vsda') MODULE_NOT_FOUND errors in Node.js server
+    const vsdaCjsDir = 'node_modules/vsda';
+    fs.mkdirSync(vsdaCjsDir, { recursive: true });
+    fs.writeFileSync(`${vsdaCjsDir}/package.json`, JSON.stringify({ name: "vsda", version: "1.0.0", main: "index.js" }, null, 2));
+    fs.writeFileSync(`${vsdaCjsDir}/index.js`, `
+class Signer { sign() { return ""; } }
+class Validator { validate() { return true; } }
+module.exports = {
+  signer: Signer,
+  validator: Validator,
+  signer_create: () => new Signer(),
+  validator_create: () => new Validator()
+};
+`);
+
     const vsdaDir = 'node_modules/vsda/rust/web';
     fs.mkdirSync(vsdaDir, { recursive: true });
     if (!fs.existsSync(`${vsdaDir}/vsda.js`)) {
