@@ -186,10 +186,10 @@ async function bundleTauriVSCode() {
 		<meta charset="utf-8" />
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-title" content="Code">
+		<meta name="apple-mobile-web-app-title" content="Falkon IDE">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
-		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
+		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;remoteAuthority&quot;:&quot;127.0.0.1:9888&quot;,&quot;callbackRoute&quot;:&quot;/callback&quot;,&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;}}">
+		<meta id="vscode-workbench-auth-session" data-settings="">
 		<link rel="stylesheet" href="./dist/workbench.css">
 		<style>
 			html, body {

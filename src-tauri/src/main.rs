@@ -716,6 +716,11 @@ fn main() {
             let webview_window = app.get_webview_window("main")
                 .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
 
+            // Navigate main webview window to the Node.js Extension Host server on 127.0.0.1:9888
+            if let Ok(target_url) = "http://127.0.0.1:9888".parse() {
+                let _ = webview_window.navigate(target_url);
+            }
+
             // Parse incoming CLI args for OAuth deep-link callback URLs
             let args: Vec<String> = std::env::args().collect();
             for arg in args {

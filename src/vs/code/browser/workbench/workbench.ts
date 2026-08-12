@@ -657,11 +657,14 @@ function readCookie(name: string): string | undefined {
 	// Find config by checking for DOM
 	// eslint-disable-next-line no-restricted-syntax
 	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
-	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
-	if (!configElement || !configElementAttribute) {
-		throw new Error('Missing web configuration element');
+	let config: any = { remoteAuthority: '127.0.0.1:9888', callbackRoute: '/callback' };
+	if (configElementAttribute && !configElementAttribute.startsWith('{{')) {
+		try {
+			config = { ...config, ...JSON.parse(configElementAttribute) };
+		} catch (e) {
+			console.warn('[Falkon] Web configuration parse fallback:', e);
+		}
 	}
-	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = JSON.parse(configElementAttribute);
 	const secretStorageKeyPath = readCookie('vscode-secret-key-path');
 	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();

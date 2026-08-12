@@ -1,18 +1,19 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Code - OSS",
+  "productName": "Falkon IDE",
   "version": "1.133.0",
-  "identifier": "com.falkon.devkit",
+  "identifier": "com.falkon.ide",
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "frontendDist": "../dist"
+    "devUrl": "http://127.0.0.1:9888",
+    "frontendDist": "../src"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Code - OSS",
+        "title": "Falkon IDE",
         "width": 1400,
         "height": 900,
         "minWidth": 800,
@@ -29,6 +30,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": [
+      "../src/server-main.js",
+      "../src/dist/workbench.js",
+      "../src/dist/workbench.css"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
