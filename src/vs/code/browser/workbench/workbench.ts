@@ -657,7 +657,8 @@ function readCookie(name: string): string | undefined {
 	// Find config by checking for DOM
 	// eslint-disable-next-line no-restricted-syntax
 	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
-	let config: any = { remoteAuthority: '127.0.0.1:9888', callbackRoute: '/callback' };
+	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
+	let config: any = { callbackRoute: '/callback' };
 	if (configElementAttribute && !configElementAttribute.startsWith('{{')) {
 		try {
 			config = { ...config, ...JSON.parse(configElementAttribute) };
@@ -670,7 +671,7 @@ function readCookie(name: string): string | undefined {
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
-	create(mainWindow.document.body, {
+	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
 		...config,
 		configurationDefaults: {
 			'workbench.colorTheme': 'Default Dark Modern',

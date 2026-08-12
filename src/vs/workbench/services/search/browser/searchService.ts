@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from '../common/search.js';
+import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, ITextSearchResult, SearchProviderType, SearchRange, TextSearchCompleteMessageType, TextSearchMatch } from '../common/search.js';
 import { SearchService } from '../common/searchService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWebWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/webWorker.js';
@@ -29,6 +29,76 @@ import { localize } from '../../../../nls.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { revive } from '../../../../base/common/marshalling.js';
 
+export class TauriSearchProvider implements ISearchResultProvider {
+	async textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
+		const results: IFileMatch[] = [];
+		const tauriSearch = (globalThis as any).__tauri_search__ || (window as any).__tauri_search__;
+		if (!tauriSearch) {
+			return { results: [], messages: [] };
+		}
+
+		await Promise.all((query.folderQueries || []).map(async fq => {
+			const folderPath = fq.folder.fsPath || fq.folder.path;
+			const pattern = query.contentPattern.pattern;
+			const include = query.includePattern ? Object.keys(query.includePattern)[0] : undefined;
+			const exclude = query.excludePattern ? Object.keys(query.excludePattern)[0] : undefined;
+			const caseSensitive = query.contentPattern.isCaseSensitive;
+
+			const rawMatches = await tauriSearch.searchText(folderPath, pattern, { include, exclude, caseSensitive });
+			if (Array.isArray(rawMatches)) {
+				const matchesByFile = new Map<string, ITextSearchResult[]>();
+				for (const m of rawMatches) {
+					if (m.type === 'match' && m.data) {
+						const filePath = m.data.path?.text;
+						if (filePath) {
+							const lineNum = m.data.line_number ?? 1;
+							const lineText = m.data.lines?.text ?? '';
+							let fileMatches = matchesByFile.get(filePath);
+							if (!fileMatches) {
+								fileMatches = [];
+								matchesByFile.set(filePath, fileMatches);
+							}
+							fileMatches.push(new TextSearchMatch(lineText, new SearchRange(lineNum - 1, 0, lineNum - 1, lineText.length)));
+						}
+					}
+				}
+
+				for (const [filePath, fileResults] of matchesByFile) {
+					const resource = URI.file(filePath);
+					const fileMatch: IFileMatch = { resource, results: fileResults };
+					results.push(fileMatch);
+					onProgress?.(fileMatch);
+				}
+			}
+		}));
+
+		return { results, messages: [] };
+	}
+
+	async fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+		const results: IFileMatch[] = [];
+		const tauriSearch = (globalThis as any).__tauri_search__ || (window as any).__tauri_search__;
+		if (!tauriSearch) {
+			return { results: [], messages: [] };
+		}
+
+		await Promise.all((query.folderQueries || []).map(async fq => {
+			const folderPath = fq.folder.fsPath || fq.folder.path;
+			const pattern = query.filePattern || '';
+			const filePaths = await tauriSearch.searchFiles(folderPath, pattern);
+			if (Array.isArray(filePaths)) {
+				for (const filePath of filePaths) {
+					results.push({ resource: URI.file(filePath) });
+				}
+			}
+		}));
+
+		return { results, messages: [] };
+	}
+
+	async clearCache(): Promise<void> {}
+}
+
 export class RemoteSearchService extends SearchService {
 	constructor(
 		@IModelService modelService: IModelService,
@@ -41,9 +111,15 @@ export class RemoteSearchService extends SearchService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
-		const searchProvider = this.instantiationService.createInstance(LocalFileSearchWorkerClient);
-		this.registerSearchResultProvider(Schemas.file, SearchProviderType.file, searchProvider);
-		this.registerSearchResultProvider(Schemas.file, SearchProviderType.text, searchProvider);
+		if ((globalThis as any).__tauri_search__ || (window as any).__tauri_search__) {
+			const searchProvider = this.instantiationService.createInstance(TauriSearchProvider);
+			this.registerSearchResultProvider(Schemas.file, SearchProviderType.file, searchProvider);
+			this.registerSearchResultProvider(Schemas.file, SearchProviderType.text, searchProvider);
+		} else {
+			const searchProvider = this.instantiationService.createInstance(LocalFileSearchWorkerClient);
+			this.registerSearchResultProvider(Schemas.file, SearchProviderType.file, searchProvider);
+			this.registerSearchResultProvider(Schemas.file, SearchProviderType.text, searchProvider);
+		}
 	}
 }
 

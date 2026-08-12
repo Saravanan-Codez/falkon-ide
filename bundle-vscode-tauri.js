@@ -33,6 +33,20 @@ async function bundleTauriVSCode() {
   console.log('📦 Bundling VS Code Web Workbench for Tauri...');
   const startTime = Date.now();
 
+  // Apply FalkonIDE.svg logo across all project locations
+  try {
+    await import('./apply-falkon-logo.mjs');
+  } catch (e) {
+    console.warn('⚠️ Could not run apply-falkon-logo:', e);
+  }
+
+  // Build all 38 built-in extension modules (Git, TypeScript, Markdown, Copilot, etc.)
+  try {
+    await import('./build/build-all-extensions.mjs');
+  } catch (e) {
+    console.warn('⚠️ Could not run build-all-extensions:', e);
+  }
+
   if (!fs.existsSync('src/dist')) {
     fs.mkdirSync('src/dist', { recursive: true });
   }
@@ -164,7 +178,67 @@ async function bundleTauriVSCode() {
       fs.writeFileSync('src/nls.messages.json', '{}\n');
     }
 
-    // Populate minimal dist/ directory for Tauri frontendDist
+function copyExtensionDir(srcDir, destDir) {
+  if (!fs.existsSync(srcDir)) return;
+  fs.mkdirSync(destDir, { recursive: true });
+  const items = fs.readdirSync(srcDir, { withFileTypes: true });
+  for (const item of items) {
+    if (item.name === 'node_modules' || item.name === 'src' || item.name === 'test' || item.name === '.git') continue;
+    const srcPath = path.join(srcDir, item.name);
+    const destPath = path.join(destDir, item.name);
+    if (item.isDirectory()) {
+      copyExtensionDir(srcPath, destPath);
+    } else if (item.isFile()) {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
+  console.log('   - Processing and copying built-in extension assets...');
+  const bundledExtensions = [];
+  if (!fs.existsSync(extensionsSrcDir)) return bundledExtensions;
+
+  fs.mkdirSync(extensionsDestDir, { recursive: true });
+  const entries = fs.readdirSync(extensionsSrcDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const extSrcPath = path.join(extensionsSrcDir, entry.name);
+    const pkgJsonPath = path.join(extSrcPath, 'package.json');
+    if (!fs.existsSync(pkgJsonPath)) continue;
+
+    try {
+      const packageJSON = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+      if (!packageJSON.name || !packageJSON.publisher) continue;
+
+      let packageNLS;
+      const nlsPath = path.join(extSrcPath, 'package.nls.json');
+      if (fs.existsSync(nlsPath)) {
+        try {
+          packageNLS = JSON.parse(fs.readFileSync(nlsPath, 'utf8'));
+        } catch (_) {}
+      }
+
+      // Copy extension assets to dist/extensions/<name>
+      const extDestPath = path.join(extensionsDestDir, entry.name);
+      copyExtensionDir(extSrcPath, extDestPath);
+
+      bundledExtensions.push({
+        extensionPath: entry.name,
+        packageJSON,
+        ...(packageNLS ? { packageNLS } : {})
+      });
+    } catch (e) {
+      console.warn(`    ⚠️ Failed to process extension ${entry.name}:`, e.message);
+    }
+  }
+
+  console.log(`     Bundled ${bundledExtensions.length} built-in extensions to ${extensionsDestDir}`);
+  return bundledExtensions;
+}
+
+    // Populate dist/ directory for Tauri frontendDist
     fs.mkdirSync('dist/dist', { recursive: true });
     fs.mkdirSync('dist/js', { recursive: true });
     fs.mkdirSync('dist/out/vs/code/browser/workbench', { recursive: true });
@@ -179,13 +253,22 @@ async function bundleTauriVSCode() {
       fs.cpSync('src/resources', 'dist/resources', { recursive: true });
     }
 
-    // Generate dist/index.html entrypoint for Tauri (standalone, no server required)
+    // Process and mirror all 90+ built-in extension packages & assets
+    const bundledExtensions = processBuiltinExtensions('extensions', 'dist/extensions');
+    const bundledExtSettings = JSON.stringify(bundledExtensions).replace(/"/g, '&quot;');
+
+    // Generate dist/index.html entrypoint for Tauri (standalone web workbench with built-in extensions)
     const indexHtmlContent = `<!DOCTYPE html>
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 		<title>Falkon IDE</title>
+		<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+		<link rel="alternate icon" href="./favicon.ico">
+		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.133.0&quot;}}">
+		<meta id="vscode-workbench-auth-session" data-settings="">
+		<meta id="vscode-workbench-builtin-extensions" data-settings="${bundledExtSettings}">
 		<link rel="stylesheet" href="./dist/workbench.css">
 		<style>
 			html, body {
@@ -195,82 +278,26 @@ async function bundleTauriVSCode() {
 				background-color: #1e1e1e;
 				color: #cccccc;
 			}
+			#workbench-container {
+				width: 100%;
+				height: 100%;
+			}
 		</style>
 	</head>
 	<body class="vs-dark" aria-label="">
 		<div id="workbench-container"></div>
 		<script>
-			// Required by VS Code resource loader
 			const _base = new URL('.', window.location.href).href;
 			globalThis._VSCODE_FILE_ROOT = _base;
 			self._VSCODE_FILE_ROOT = _base;
 		</script>
 		<script type="module" src="./js/tauri-shim.js"></script>
-		<script type="module">
-			import { create } from './dist/workbench.js';
-
-			window.addEventListener('error', e => console.error('[VSCode]', e.error || e.message));
-			window.addEventListener('unhandledrejection', e => console.error('[VSCode Rejection]', e.reason));
-
-			// Restore last opened folder from localStorage
-			const lastFolder = localStorage.getItem('falkon-last-folder');
-			const workspace = lastFolder ? {
-				folderUri: {
-					scheme: 'file',
-					path: (navigator.platform.startsWith('Win') && !lastFolder.startsWith('/'))
-						? '/' + lastFolder.replace(/\\\\/g, '/')
-						: lastFolder,
-					authority: '', query: '', fragment: ''
-				}
-			} : undefined;
-
-			const workbenchEl = document.getElementById('workbench-container') || document.body;
-
-			create(workbenchEl, {
-				productConfiguration: {
-					nameShort: 'Falkon IDE',
-					nameLong: 'Falkon IDE',
-					applicationName: 'falkon-ide',
-					dataFolderName: '.falkon-ide',
-					licenseName: 'MIT',
-					version: '1.133.0',
-				},
-				workspaceProvider: {
-					workspace,
-					trusted: true,
-					open: async (ws) => {
-						if (ws?.folderUri) {
-							const p = ws.folderUri.path.replace(/^\\/([A-Z]:)/, '$1').replace(/\\//g, '\\\\\\\\');
-							localStorage.setItem('falkon-last-folder', p);
-						}
-						window.location.reload();
-						return true;
-					}
-				},
-				commands: [
-					{
-						id: 'falkon.openFolder',
-						label: 'Open Folder...',
-						handler: async () => {
-							const path = await window.__tauri_dialogs__?.openFolder();
-							if (!path) return;
-							localStorage.setItem('falkon-last-folder', path);
-							window.location.reload();
-						}
-					}
-				],
-				configurationDefaults: {
-					'workbench.colorTheme': 'Default Dark Modern',
-					'editor.fontFamily': '"Cascadia Code", "Fira Code", Consolas, monospace',
-					'editor.fontSize': 14,
-					'files.autoSave': 'afterDelay',
-				},
-				enableWorkspaceTrust: false,
-			});
-		</script>
+		<script type="module" src="./dist/workbench.js"></script>
 	</body>
 </html>
 `;
+
+
 
     fs.writeFileSync('dist/index.html', indexHtmlContent);
 

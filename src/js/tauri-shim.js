@@ -62,13 +62,15 @@ window.__tauri_terminal__ = {
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
     if (window.__TAURI__?.event?.listen) {
-      return window.__TAURI__.event.listen(`terminal-data-${id}`, (e) => cb(e.payload));
+      const p = window.__TAURI__.event.listen(`terminal-data-${id}`, (e) => cb(e.payload));
+      return () => { p.then(u => u && u()); };
     }
     return () => {};
   },
   onExit: (id, cb) => {
     if (window.__TAURI__?.event?.listen) {
-      return window.__TAURI__.event.listen(`terminal-exit-${id}`, cb);
+      const p = window.__TAURI__.event.listen(`terminal-exit-${id}`, cb);
+      return () => { p.then(u => u && u()); };
     }
     return () => {};
   },
