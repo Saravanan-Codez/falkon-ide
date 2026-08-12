@@ -20,7 +20,7 @@ tauri-build = { version = "2.6.3", features = [] }
 
 [profile.release]
 opt-level = "s"
-lto = true
-codegen-units = 1
+lto = "thin"
+codegen-units = 16
 panic = "abort"
 strip = true
