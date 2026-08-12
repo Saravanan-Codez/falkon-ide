@@ -163,40 +163,6 @@ async fn save_file_dialog(default_name: Option<String>) -> Option<String> {
 //  Settings Persistence (VS Code's own JSON format)
 // ─────────────────────────────────────────────
 
-fn settings_dir() -> std::path::PathBuf {
-    let mut dir = dirs::config_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    dir.push("Code - OSS");
-    dir.push("User");
-    dir
-}
-
-#[tauri::command]
-fn read_settings() -> Result<String, String> {
-    let path = settings_dir().join("settings.json");
-    if path.exists() {
-        fs::read_to_string(&path).map_err(|e| e.to_string())
-    } else {
-        Ok("{}".to_string())
-    }
-}
-
-#[tauri::command]
-fn write_settings(content: String) -> Result<bool, String> {
-    let dir = settings_dir();
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    fs::write(dir.join("settings.json"), content).map(|_| true).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn read_keybindings() -> Result<String, String> {
-    let path = settings_dir().join("keybindings.json");
-    if path.exists() {
-        fs::read_to_string(&path).map_err(|e| e.to_string())
-    } else {
-        Ok("[]".to_string())
-    }
-}
-
 // ─────────────────────────────────────────────
 //  Integrated Terminal (PTY via portable-pty)
 // ─────────────────────────────────────────────
@@ -500,6 +466,46 @@ fn run_falkon(entry: String, options: Option<serde_json::Value>) -> Result<serde
 #[tauri::command]
 fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
     run_falkon(entry, options)
+}
+
+fn settings_dir() -> std::path::PathBuf {
+    let base = dirs::config_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    let falkon_dir = base.join("Falkon IDE").join("User");
+    if falkon_dir.exists() {
+        return falkon_dir;
+    }
+    let code_oss_dir = base.join("Code - OSS").join("User");
+    if code_oss_dir.exists() {
+        return code_oss_dir;
+    }
+    falkon_dir
+}
+
+#[tauri::command]
+fn read_settings() -> Result<String, String> {
+    let path = settings_dir().join("settings.json");
+    if path.exists() {
+        fs::read_to_string(&path).map_err(|e| e.to_string())
+    } else {
+        Ok("{}".to_string())
+    }
+}
+
+#[tauri::command]
+fn write_settings(content: String) -> Result<bool, String> {
+    let dir = settings_dir();
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::write(dir.join("settings.json"), content).map(|_| true).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_keybindings() -> Result<String, String> {
+    let path = settings_dir().join("keybindings.json");
+    if path.exists() {
+        fs::read_to_string(&path).map_err(|e| e.to_string())
+    } else {
+        Ok("[]".to_string())
+    }
 }
 
 #[tauri::command]
