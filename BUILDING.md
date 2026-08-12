@@ -112,18 +112,17 @@ npm run build:deb
 npm run build:appimage
 ```
 
-### Passing Dynamic Target Flags
-You can also pass any custom `--target` flag directly through `npm run build`:
+### Passing Dynamic Bundle Flags
+You can also pass any custom `--bundles` flag directly through `npm run build`:
 ```bash
 # Build only NSIS setup EXE on Windows
-npm run build -- --target nsis
+npm run build -- --bundles nsis
 
 # Build only MSI installer on Windows
-npm run build -- --target msi
+npm run build -- --bundles msi
 
 # Build only Deb package on Linux
-npm run build -- --target deb
-```
+npm run build -- --bundles deb
 ```
 
 ---
