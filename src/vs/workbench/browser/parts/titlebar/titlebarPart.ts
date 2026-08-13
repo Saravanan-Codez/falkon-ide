@@ -556,17 +556,25 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			const cmd = cmdMap[actionName] || actionName;
 			const tauri = win.__TAURI__ || (globalThis as any).__TAURI__;
 			if (tauri?.core?.invoke) {
-				tauri.core.invoke(cmd).catch(console.error);
+				tauri.core.invoke(cmd).catch((err: any) => {
+					console.warn('[WindowControl] IPC failed, trying HTTP fallback:', err);
+					fetch(`/api/window/${actionName}`, { method: 'POST' }).catch(console.error);
+				});
 				return;
 			}
 			if (win.__TAURI_INTERNALS__?.invoke) {
-				win.__TAURI_INTERNALS__.invoke(cmd).catch(console.error);
+				win.__TAURI_INTERNALS__.invoke(cmd).catch((err: any) => {
+					console.warn('[WindowControl] IPC failed, trying HTTP fallback:', err);
+					fetch(`/api/window/${actionName}`, { method: 'POST' }).catch(console.error);
+				});
 				return;
 			}
+			// HTTP API Fallback
+			fetch(`/api/window/${actionName}`, { method: 'POST' }).catch(console.error);
 		};
 
 		const bindControl = (element: HTMLElement, actionName: string, hoverBg: string, hoverColor?: string) => {
-			element.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; pointer-events: auto !important; position: relative !important; z-index: 10001 !important; transition: background-color 0.15s ease, color 0.15s ease;';
+			element.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; pointer-events: auto !important; position: relative !important; z-index: 10001 !important; transition: background-color 0.15s ease, color 0.15s ease; user-select: none !important;';
 			this._register(addDisposableListener(element, EventType.MOUSE_OVER, () => {
 				element.style.backgroundColor = hoverBg;
 				if (hoverColor) element.style.color = hoverColor;
@@ -580,7 +588,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				invokeWinControl(actionName);
 			};
 			this._register(addDisposableListener(element, EventType.CLICK, handler));
-			this._register(addDisposableListener(element, EventType.MOUSE_DOWN, handler));
 		};
 
 		// Minimize

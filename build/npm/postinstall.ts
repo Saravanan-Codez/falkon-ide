@@ -53,8 +53,12 @@ function spawnAsync(command: string, args: string[], opts: child_process.SpawnOp
 }
 
 async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): Promise<void> {
+	const finalEnv = { ...process.env, ...(opts?.env ?? {}) };
+	delete finalEnv['npm_config_allow_scripts'];
+	delete finalEnv['npm_config_allowScripts'];
+
 	const finalOpts: child_process.SpawnOptions = {
-		env: { ...process.env },
+		env: finalEnv,
 		...(opts ?? {}),
 		cwd: path.join(root, dir),
 		shell: true,
@@ -175,6 +179,9 @@ function getNpmrcConfigKeys(npmrcPath: string): string[] {
 }
 
 function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
+	delete env['npm_config_allow_scripts'];
+	delete env['npm_config_allowScripts'];
+
 	const dirNpmrcPath = path.join(root, dir, '.npmrc');
 	if (fs.existsSync(dirNpmrcPath)) {
 		return;

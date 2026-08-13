@@ -245,9 +245,12 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
     fs.copyFileSync('src/dist/workbench.js', 'dist/dist/workbench.js');
     fs.copyFileSync('src/dist/workbench.css', 'dist/dist/workbench.css');
     fs.copyFileSync('src/dist/workbench.js', 'dist/out/vs/code/browser/workbench/workbench.js');
-    fs.copyFileSync('src/dist/workbench.css', 'dist/out/vs/code/browser/workbench/workbench.css');
     if (fs.existsSync('src/js/tauri-shim.js')) {
+      fs.mkdirSync('js', { recursive: true });
+      fs.mkdirSync('out/js', { recursive: true });
+      fs.copyFileSync('src/js/tauri-shim.js', 'js/tauri-shim.js');
       fs.copyFileSync('src/js/tauri-shim.js', 'dist/js/tauri-shim.js');
+      fs.copyFileSync('src/js/tauri-shim.js', 'out/js/tauri-shim.js');
     }
     if (fs.existsSync('src/resources')) {
       fs.cpSync('src/resources', 'dist/resources', { recursive: true });

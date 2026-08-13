@@ -47,7 +47,7 @@ class TauriTerminalChildProcess extends Disposable {
       this._tauriSessionId = await tauriTerminal.create(this._cwd, this._rows, this._cols);
       this._logService.info(`[TauriTerminal] Created PTY session: ${this._tauriSessionId}`);
       tauriTerminal.onData(this._tauriSessionId, (data) => {
-        this._onProcessData.fire(data);
+        this._onProcessData.fire({ data, trackCommit: false });
       });
       tauriTerminal.onExit(this._tauriSessionId, () => {
         this._onProcessExit.fire(0);

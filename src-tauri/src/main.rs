@@ -167,6 +167,17 @@ async fn save_file_dialog(default_name: Option<String>) -> Option<String> {
 //  Integrated Terminal (PTY via portable-pty)
 // ─────────────────────────────────────────────
 
+#[derive(Clone, serde::Serialize)]
+struct TerminalDataPayload {
+    id: String,
+    data: String,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct TerminalExitPayload {
+    id: String,
+}
+
 #[tauri::command]
 fn terminal_create(
     state: tauri::State<PtyStore>,
@@ -196,6 +207,16 @@ fn terminal_create(
         cmd.cwd(cwd);
     }
 
+    // Configure complete interactive terminal environment
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    cmd.env("TERM_PROGRAM", "FalkonIDE");
+    if let Ok(lang) = std::env::var("LANG") {
+        cmd.env("LANG", lang);
+    } else {
+        cmd.env("LANG", "en_US.UTF-8");
+    }
+
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let master = pair.master;
     let writer = master.take_writer().map_err(|e| e.to_string())?;
@@ -204,15 +225,20 @@ fn terminal_create(
     let id_clone = id.clone();
     let window_clone = window.clone();
     std::thread::spawn(move || {
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; 8192];
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => {
+                    let _ = window_clone.emit("terminal-exit", TerminalExitPayload { id: id_clone.clone() });
                     let _ = window_clone.emit(&format!("terminal-exit-{}", id_clone), ());
                     break;
                 }
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let _ = window_clone.emit("terminal-data", TerminalDataPayload {
+                        id: id_clone.clone(),
+                        data: data.clone(),
+                    });
                     let _ = window_clone.emit(&format!("terminal-data-{}", id_clone), data);
                 }
             }
@@ -228,7 +254,9 @@ fn terminal_write(state: tauri::State<PtyStore>, id: String, data: String) -> Re
     let mut store = state.lock().unwrap();
     if let Some(session) = store.get_mut(&id) {
         use std::io::Write;
-        session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())
+        session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        session.writer.flush().map_err(|e| e.to_string())?;
+        Ok(())
     } else {
         Err(format!("PTY session '{}' not found", id))
     }
@@ -636,7 +664,7 @@ fn start_node_server() -> Option<std::process::Child> {
     cmd.arg(&server_path_str)
         .arg("--host").arg("127.0.0.1")
         .arg("--port").arg("9888")
-        .arg("--connection-token").arg("falkon-dev-token")
+        .arg("--without-connection-token")
         .arg("--accept-server-license-terms");
 
     match cmd.spawn() {
@@ -723,9 +751,19 @@ fn main() {
                 .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
 
             // Navigate main webview window to the Node.js Extension Host server on 127.0.0.1:9888
-            if let Ok(target_url) = "http://127.0.0.1:9888".parse() {
-                let _ = webview_window.navigate(target_url);
-            }
+            // Spawn a thread to wait until the server is responsive so it never fails on initial launch.
+            let wv = webview_window.clone();
+            std::thread::spawn(move || {
+                for _ in 0..60 {
+                    if std::net::TcpStream::connect("127.0.0.1:9888").is_ok() {
+                        if let Ok(target_url) = "http://127.0.0.1:9888".parse() {
+                            let _ = wv.navigate(target_url);
+                        }
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            });
 
             // Parse incoming CLI args for OAuth deep-link callback URLs
             let args: Vec<String> = std::env::args().collect();

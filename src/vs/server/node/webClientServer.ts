@@ -250,6 +250,29 @@ export class WebClientServer {
 				return void res.end(JSON.stringify({ path: selected }));
 			}
 
+			// ── Window Controls API ────────────────────────────────────────────────
+			if (pathname === '/api/window/minimize') {
+				if (process.platform === 'linux') {
+					child_process.exec('xdotool getactivewindow windowminimize 2>/dev/null || wmctrl -r :ACTIVE: -b add,shaded 2>/dev/null');
+				} else if (process.platform === 'win32') {
+					child_process.exec('powershell -Command "(New-Object -ComObject Shell.Application).MinimizeAll()"');
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+				return void res.end(JSON.stringify({ ok: true }));
+			}
+			if (pathname === '/api/window/toggleMaximize' || pathname === '/api/window/toggle-maximize') {
+				if (process.platform === 'linux') {
+					child_process.exec('wmctrl -r :ACTIVE: -b toggle,maximized_vert,maximized_horz 2>/dev/null');
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+				return void res.end(JSON.stringify({ ok: true }));
+			}
+			if (pathname === '/api/window/close') {
+				setTimeout(() => process.exit(0), 100);
+				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+				return void res.end(JSON.stringify({ ok: true }));
+			}
+
 			return serveError(req, res, 404, 'Not found.');
 		} catch (error) {
 			this._logService.error(error);
@@ -268,7 +291,14 @@ export class WebClientServer {
 		// Strip the this._staticRoute from the path
 		const normalizedPathname = decodeURIComponent(resourcePath); // support paths that are uri-encoded (e.g. spaces => %20)
 
-		const filePath = join(APP_ROOT, normalizedPathname); // join also normalizes the path
+		let filePath = join(APP_ROOT, normalizedPathname); // join also normalizes the path
+		if (!fs.existsSync(filePath)) {
+			if (fs.existsSync(join(APP_ROOT, 'src', normalizedPathname))) {
+				filePath = join(APP_ROOT, 'src', normalizedPathname);
+			} else if (fs.existsSync(join(APP_ROOT, 'dist', normalizedPathname))) {
+				filePath = join(APP_ROOT, 'dist', normalizedPathname);
+			}
+		}
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 			return serveError(req, res, 400, `Bad request.`);
 		}

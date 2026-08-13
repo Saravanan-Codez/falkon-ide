@@ -44,7 +44,7 @@ if (existsSync(msvcBin)) {
   // Tell VS detection where to find it (for tools that check env vars)
   env.vs2022_install = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools';
   env.VSCMD_VER = '17.14.36231';
-} else {
+} else if (process.platform === 'win32') {
   console.warn('⚠️  MSVC Build Tools not found at expected path. Cargo may fail to link.');
 }
 
@@ -52,10 +52,22 @@ if (existsSync(msvcBin)) {
 delete env.LD_LIBRARY_PATH;
 delete env.GTK_PATH;
 
-console.log(`🚀 Starting Tauri: tauri ${action} ${extraArgs.join(' ')}...`);
+if (process.platform === 'linux') {
+  env.APPIMAGE_EXTRACT_AND_RUN = '1';
+  env.NO_STRIP = 'true';
+}
 
 const isWin = process.platform === 'win32';
+const isLinux = process.platform === 'linux';
+
 const tauriArgs = ['tauri', action, ...extraArgs];
+
+// On Linux, default build targets to deb,rpm if not explicitly specified
+if (action === 'build' && isLinux && !extraArgs.some(a => a === '--bundles' || a === '-b')) {
+  tauriArgs.push('--bundles', 'deb,rpm');
+}
+
+console.log(`🚀 Starting Tauri: ${tauriArgs.join(' ')}...`);
 
 let child;
 if (isWin) {
