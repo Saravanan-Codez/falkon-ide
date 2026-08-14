@@ -12,30 +12,42 @@ function applyLogo() {
     return;
   }
 
+  const fullSvgContent = fs.readFileSync(fullSvgPath, 'utf8');
   const uiSvgContent = fs.readFileSync(uiSvgPath, 'utf8');
 
-  // List of SVG brand logo files in VS Code UI and extensions to replace with FalkonIDE-ui.svg (lightweight 16KB SVG)
-  const svgTargets = [
+  // Small UI icons (code-icon, favicon)
+  const smallUiSvgTargets = [
     'src/vs/workbench/browser/media/code-icon.svg',
     'src/vs/sessions/browser/media/vscode-icon.svg',
     'src/vs/sessions/browser/media/sessions-icon.svg',
     'src/vs/sessions/browser/media/sessions-logo-dark.svg',
     'src/vs/sessions/browser/media/sessions-logo-light.svg',
-    'src/vs/workbench/browser/parts/editor/media/letterpress-dark.svg',
-    'src/vs/workbench/browser/parts/editor/media/letterpress-light.svg',
-    'src/vs/workbench/browser/parts/editor/media/letterpress-hcDark.svg',
-    'src/vs/workbench/browser/parts/editor/media/letterpress-hcLight.svg',
     'extensions/github-authentication/media/code-icon.svg',
     'src/extensions/github-authentication/media/code-icon.svg',
     'dist/favicon.svg',
     'src/favicon.svg',
   ];
 
-  for (const relPath of svgTargets) {
+  for (const relPath of smallUiSvgTargets) {
     const fullPath = path.resolve(relPath);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
     fs.writeFileSync(fullPath, uiSvgContent, 'utf8');
     console.log(`  ✓ Updated UI SVG: ${relPath}`);
+  }
+
+  // Large editor welcome watermark logos (letterpress-*.svg) - use full vector FalkonIDE.svg for 100% crisp resolution
+  const letterpressTargets = [
+    'src/vs/workbench/browser/parts/editor/media/letterpress-dark.svg',
+    'src/vs/workbench/browser/parts/editor/media/letterpress-light.svg',
+    'src/vs/workbench/browser/parts/editor/media/letterpress-hcDark.svg',
+    'src/vs/workbench/browser/parts/editor/media/letterpress-hcLight.svg',
+  ];
+
+  for (const relPath of letterpressTargets) {
+    const fullPath = path.resolve(relPath);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, fullSvgContent, 'utf8');
+    console.log(`  ✓ Updated Vector Letterpress SVG: ${relPath}`);
   }
 
   // Binary app icon mappings (from src-tauri/icons to resources, extensions & dist)

@@ -22,6 +22,12 @@ import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } fr
 import { AuthenticationSessionInfo } from '../../../workbench/services/authentication/browser/authenticationService.js';
 import type { IURLCallbackProvider } from '../../../workbench/services/url/browser/urlService.js';
 import { create } from '../../../workbench/workbench.web.main.internal.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../workbench/common/contributions.js';
+import { LifecyclePhase } from '../../../workbench/services/lifecycle/common/lifecycle.js';
+import { TauriTerminalContribution } from '../../../workbench/contrib/terminal/browser/tauriTerminalBackend.js';
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Restored);
 
 interface ISecretStorageCrypto {
 	seal(data: string): Promise<string>;

@@ -212,6 +212,12 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
       const packageJSON = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
       if (!packageJSON.name || !packageJSON.publisher) continue;
 
+      // Ensure extensionKind supports web execution for built-in extensions (Git, Language Features, Themes)
+      packageJSON.extensionKind = ['ui', 'workspace', 'web'];
+      if (!packageJSON.browser && packageJSON.main) {
+        packageJSON.browser = packageJSON.main;
+      }
+
       let packageNLS;
       const nlsPath = path.join(extSrcPath, 'package.nls.json');
       if (fs.existsSync(nlsPath)) {
