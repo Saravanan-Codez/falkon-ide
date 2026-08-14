@@ -89,6 +89,12 @@ else {
 			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			builtInExtensionsEnabledWithAutoUpdates: [],
 			builtInExtensions: [],
+			extensionsGallery: {
+				serviceUrl: 'https://open-vsx.org/vscode/gallery',
+				itemUrl: 'https://open-vsx.org/item',
+				resourceUrlTemplate: 'https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}',
+				controlUrl: 'https://az764295.vo.msecnd.net/extensions/marketplace.json'
+			},
 			defaultChatAgent: {
 				extensionId: 'GitHub.copilot',
 				chatExtensionId: 'GitHub.copilot-chat',

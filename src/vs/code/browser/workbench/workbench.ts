@@ -690,6 +690,9 @@ function readCookie(name: string): string | undefined {
 			'security.workspace.trust.enabled': false,
 			'chat.titleBar.openInAgentsWindow.enabled': true,
 			'chat.commandCenter.enabled': true,
+			'git.enabled': true,
+			'git.path': 'git',
+			'git.autoRepositoryDetection': true,
 			...config.configurationDefaults
 		},
 		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
