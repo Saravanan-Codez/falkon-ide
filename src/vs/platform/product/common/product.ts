@@ -91,7 +91,7 @@ else {
 			builtInExtensions: [],
 			extensionsGallery: {
 				serviceUrl: 'https://open-vsx.org/vscode/gallery',
-				itemUrl: 'https://open-vsx.org/item',
+				itemUrl: 'https://marketplace.visualstudio.com/items',
 				resourceUrlTemplate: 'https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}',
 				controlUrl: 'https://az764295.vo.msecnd.net/extensions/marketplace.json'
 			},

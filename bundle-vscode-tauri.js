@@ -275,7 +275,7 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 		<title>Falkon IDE</title>
 		<link rel="icon" type="image/svg+xml" href="./favicon.svg">
 		<link rel="alternate icon" href="./favicon.ico">
-		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.133.0&quot;,&quot;extensionsGallery&quot;:{&quot;serviceUrl&quot;:&quot;https://open-vsx.org/vscode/gallery&quot;,&quot;itemUrl&quot;:&quot;https://open-vsx.org/item&quot;,&quot;resourceUrlTemplate&quot;:&quot;https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}&quot;}}}">
+		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.133.0&quot;,&quot;extensionsGallery&quot;:{&quot;serviceUrl&quot;:&quot;https://open-vsx.org/vscode/gallery&quot;,&quot;itemUrl&quot;:&quot;https://marketplace.visualstudio.com/items&quot;,&quot;resourceUrlTemplate&quot;:&quot;https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}&quot;}}}">
 		<meta id="vscode-workbench-auth-session" data-settings="">
 		<meta id="vscode-workbench-builtin-extensions" data-settings="${bundledExtSettings}">
 		<link rel="stylesheet" href="./dist/workbench.css">
