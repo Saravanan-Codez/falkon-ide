@@ -10,6 +10,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "clean": "node scripts/clean.js",
     "dev": "node bundle-vscode-tauri.js && node run-tauri.js dev",
     "build": "node bundle-vscode-tauri.js && node run-tauri.js build",
     "build:msi": "node bundle-vscode-tauri.js && node run-tauri.js build --bundles msi",
