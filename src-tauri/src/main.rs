@@ -582,77 +582,50 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
-// ─────────────────────────────────────────────
-//  Node.js Extension Host Sidecar Supervisor
-// ─────────────────────────────────────────────
+fn start_oauth_callback_server(app_handle: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let listener = match std::net::TcpListener::bind("127.0.0.1:9888") {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("[Falkon OAuth] Port 9888 already bound or unavailable: {}", e);
+                return;
+            }
+        };
 
-struct ServerManager {
-    #[allow(dead_code)]
-    child: Mutex<Option<std::process::Child>>,
-}
+        println!("[Falkon OAuth] OAuth callback listener active on http://127.0.0.1:9888");
 
-fn find_server_script() -> Option<std::path::PathBuf> {
-    let candidates = [
-        // 1. Current working directory
-        std::env::current_dir().ok().map(|d| d.join("src").join("server-main.js")),
-        std::env::current_dir().ok().map(|d| d.join("server-main.js")),
-        // 2. Executable directory parent
-        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
-        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|d| d.parent()).map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
-        // 3. Compile-time manifest dir fallback
-        option_env!("CARGO_MANIFEST_DIR").map(|d| {
-            let mut p = std::path::PathBuf::from(d);
-            if p.ends_with("src-tauri") { p.pop(); }
-            p.join("src").join("server-main.js")
-        }),
-    ];
+        for stream in listener.incoming() {
+            if let Ok(mut stream) = stream {
+                use std::io::{Read, Write};
+                let mut buf = [0u8; 4096];
+                if let Ok(n) = stream.read(&mut buf) {
+                    if n > 0 {
+                        let request = String::from_utf8_lossy(&buf[..n]);
+                        if let Some(first_line) = request.lines().next() {
+                            let parts: Vec<&str> = first_line.split_whitespace().collect();
+                            if parts.len() >= 2 {
+                                let path_and_query = parts[1];
+                                let full_uri = format!("http://127.0.0.1:9888{}", path_and_query);
 
-    for candidate in candidates.into_iter().flatten() {
-        if candidate.exists() {
-            return Some(candidate);
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    let escaped = full_uri.replace('\\', "\\\\").replace('"', "\\\"");
+                                    let js = format!(
+                                        r#"if (window.__falkon_handle_uri) {{ window.__falkon_handle_uri("{escaped}"); }}"#,
+                                        escaped = escaped
+                                    );
+                                    let _ = window.eval(&js);
+                                }
+
+                                let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!DOCTYPE html><html><head><title>Falkon IDE - Authentication</title><style>body{font-family:system-ui,sans-serif;background:#1e1e1e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;}h2{color:#4ec9b0;}p{color:#cccccc;}</style></head><body><h2>Authentication Successful!</h2><p>You have successfully authenticated. You may close this browser tab and return to Falkon IDE.</p><script>setTimeout(() => window.close(), 2000);</script></body></html>";
+                                let _ = stream.write_all(response.as_bytes());
+                                let _ = stream.flush();
+                            }
+                        }
+                    }
+                }
+            }
         }
-    }
-    None
-}
-
-fn start_node_server() -> Option<std::process::Child> {
-    // Check if server is already running on port 9888
-    if std::net::TcpStream::connect("127.0.0.1:9888").is_ok() {
-        println!("[Falkon] Node.js Extension Host server is already running on 127.0.0.1:9888");
-        return None;
-    }
-
-    let node_cmd = if cfg!(windows) { "node.exe" } else { "node" };
-    let server_path = match find_server_script() {
-        Some(p) => p,
-        None => {
-            eprintln!("[Falkon] Error: Could not locate server-main.js");
-            return None;
-        }
-    };
-
-    let server_path_str = server_path.to_string_lossy().to_string();
-    println!("[Falkon] Starting Node.js Extension Host sidecar: {}", server_path_str);
-
-    let mut cmd = Command::new(node_cmd);
-    cmd.arg(&server_path_str)
-        .arg("--host").arg("127.0.0.1")
-        .arg("--port").arg("9888")
-        .arg("--without-connection-token")
-        .arg("--accept-server-license-terms");
-
-    match cmd.spawn() {
-        Ok(child) => {
-            println!("[Falkon] Node.js Extension Host sidecar spawned with PID: {}", child.id());
-            // Give the server a brief moment to bind to the port
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            Some(child)
-        }
-        Err(e) => {
-            eprintln!("[Falkon] Warning: Could not spawn Node.js sidecar automatically: {}", e);
-            None
-        }
-    }
+    });
 }
 
 // ─────────────────────────────────────────────
@@ -689,9 +662,6 @@ fn main() {
     }
 
     let pty_store: PtyStore = Mutex::new(HashMap::new());
-    let server_manager = ServerManager {
-        child: Mutex::new(start_node_server()),
-    };
 
     // Store the last pending deep link URI received before the webview was ready.
     // Thread-safe: protected by a Mutex so the on_page_load handler can drain it.
@@ -700,7 +670,6 @@ fn main() {
 
     tauri::Builder::default()
         .manage(pty_store)
-        .manage(server_manager)
         .on_page_load(move |webview, payload| {
             if payload.event() == tauri::webview::PageLoadEvent::Finished {
                 if let Ok(mut lock) = pending_uri_clone.lock() {
@@ -715,29 +684,12 @@ fn main() {
                 }
             }
         })
-        // Inject the initialization script into the Tauri WebView.
-        // This script runs on every page load inside the WebView, including
-        // the VS Code workbench served from http://127.0.0.1:9888.
-        // It provides a __falkon_handle_uri(uri) function which the Rust side
-        // can call to dispatch URI-handler events to the VS Code extension host.
         .setup(move |app| {
             let webview_window = app.get_webview_window("main")
                 .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
 
-            // Navigate main webview window to the Node.js Extension Host server on 127.0.0.1:9888
-            // Spawn a thread to wait until the server is responsive so it never fails on initial launch.
-            let wv = webview_window.clone();
-            std::thread::spawn(move || {
-                for _ in 0..60 {
-                    if std::net::TcpStream::connect("127.0.0.1:9888").is_ok() {
-                        if let Ok(target_url) = "http://127.0.0.1:9888".parse() {
-                            let _ = wv.navigate(target_url);
-                        }
-                        break;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                }
-            });
+            // Start dedicated OAuth callback listener on port 9888 for GitHub / Microsoft account login
+            start_oauth_callback_server(app.handle().clone());
 
             // Parse incoming CLI args for OAuth deep-link callback URLs
             let args: Vec<String> = std::env::args().collect();
