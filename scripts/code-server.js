@@ -1,17 +1,13 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+import cp from 'child_process';
+import path from 'path';
+import open from 'open';
+import minimist from 'minimist';
+import { fileURLToPath } from 'url';
 
-// @ts-check
-
-const cp = require('child_process');
-const path = require('path');
-const open = require('open');
-const minimist = require('minimist');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function main() {
-
 	const args = minimist(process.argv.slice(2), {
 		boolean: [
 			'help',
@@ -43,7 +39,7 @@ function startServer(programArgs) {
 		const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
 
 		console.log(`Starting server: ${entryPoint} ${programArgs.join(' ')}`);
-		const proc = cp.spawn(process.execPath, [entryPoint, ...programArgs], { env, stdio: [process.stdin, null, process.stderr] });
+		const proc = cp.spawn(process.execPath, [entryPoint, ...programArgs], { env, stdio: [process.stdin, 'pipe', process.stderr] });
 		proc.stdout.on('data', e => {
 			const data = e.toString();
 			process.stdout.write(data);
@@ -53,19 +49,18 @@ function startServer(programArgs) {
 			}
 		});
 
-		proc.on('exit', (code) => process.exit(code));
+		proc.on('exit', (code) => process.exit(code || 0));
 
 		process.on('exit', () => proc.kill());
 		process.on('SIGINT', () => {
 			proc.kill();
-			process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+			process.exit(128 + 2);
 		});
 		process.on('SIGTERM', () => {
 			proc.kill();
-			process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+			process.exit(128 + 15);
 		});
 	});
-
 }
 
 main();

@@ -333,6 +333,46 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
       );
     }
 
+    // Generate out/server-main.js entrypoint for scripts/code-server.js
+    const serverMainContent = `const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const PORT = process.env.VSCODE_SERVER_PORT || 9888;
+const mimeTypes = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf'
+};
+
+const server = http.createServer((req, res) => {
+  let reqPath = req.url.split('?')[0];
+  if (reqPath === '/') reqPath = '/index.html';
+  const filePath = path.join(__dirname, '..', 'dist', reqPath);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    const ext = path.extname(filePath);
+    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+    fs.createReadStream(filePath).pipe(res);
+  } else {
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    fs.createReadStream(indexPath).pipe(res);
+  }
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log('Web UI available at http://127.0.0.1:' + PORT + '/?tkn=falkon-dev-token');
+});
+`;
+    fs.mkdirSync('out', { recursive: true });
+    fs.writeFileSync('out/server-main.js', serverMainContent);
+
     // VSDA stubs to prevent require('vsda') MODULE_NOT_FOUND errors in Node.js server
     const vsdaCjsDir = 'node_modules/vsda';
     fs.mkdirSync(vsdaCjsDir, { recursive: true });

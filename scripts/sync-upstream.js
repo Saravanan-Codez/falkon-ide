@@ -86,6 +86,12 @@ function syncUpstream() {
  4. Promote verified build: \x1b[33mdev -> main\x1b[0m
 `);
   } catch (err) {
+    if (stashed) {
+      console.log('\n\x1b[33m⚠️ Sync encountered an error. Automatically restoring stashed changes...\x1b[0m');
+      try {
+        run('git stash pop');
+      } catch (_) {}
+    }
     console.error('\x1b[31m❌ Upstream sync failed:\x1b[0m', err.message);
     process.exit(1);
   }

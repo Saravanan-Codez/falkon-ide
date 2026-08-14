@@ -47,34 +47,6 @@ window.__tauri_dialogs__ = {
 //  Terminal (PTY)
 // ─────────────────────────────────────────────
 
-const _terminalDataListeners = new Map();
-const _terminalExitListeners = new Map();
-
-function initGlobalTerminalListeners() {
-  const tauri = window.__TAURI__ || (globalThis).__TAURI__;
-  if (!tauri?.event?.listen) {
-    setTimeout(initGlobalTerminalListeners, 50);
-    return;
-  }
-
-  tauri.event.listen('terminal-data', (e) => {
-    if (e?.payload) {
-      const { id, data } = e.payload;
-      const cb = _terminalDataListeners.get(id);
-      if (cb) cb(data);
-    }
-  });
-
-  tauri.event.listen('terminal-exit', (e) => {
-    if (e?.payload) {
-      const { id } = e.payload;
-      const cb = _terminalExitListeners.get(id);
-      if (cb) cb();
-    }
-  });
-}
-initGlobalTerminalListeners();
-
 window.__tauri_terminal__ = {
   create: (cwd, rows, cols) => invoke('terminal_create', {
     cwd: (typeof cwd === 'string' && cwd.length > 0) ? cwd : null,
@@ -92,7 +64,6 @@ window.__tauri_terminal__ = {
   }),
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
-    _terminalDataListeners.set(id, cb);
     const tauri = window.__TAURI__ || (globalThis).__TAURI__;
     if (tauri?.event?.listen) {
       const p = tauri.event.listen(`terminal-data-${id}`, (e) => {
@@ -101,23 +72,20 @@ window.__tauri_terminal__ = {
         }
       });
       return () => {
-        _terminalDataListeners.delete(id);
         p.then(u => typeof u === 'function' && u());
       };
     }
-    return () => { _terminalDataListeners.delete(id); };
+    return () => {};
   },
   onExit: (id, cb) => {
-    _terminalExitListeners.set(id, cb);
     const tauri = window.__TAURI__ || (globalThis).__TAURI__;
     if (tauri?.event?.listen) {
       const p = tauri.event.listen(`terminal-exit-${id}`, cb);
       return () => {
-        _terminalExitListeners.delete(id);
         p.then(u => typeof u === 'function' && u());
       };
     }
-    return () => { _terminalExitListeners.delete(id); };
+    return () => {};
   },
 };
 

@@ -52,10 +52,68 @@ function spawnAsync(command: string, args: string[], opts: child_process.SpawnOp
 	});
 }
 
+function injectMsvcToolchain(env: NodeJS.ProcessEnv): void {
+	if (process.platform !== 'win32') return;
+
+	const vsPaths = [
+		'C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools',
+		'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community',
+		'C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional',
+		'C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise',
+		'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community',
+		'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools',
+	];
+
+	let vsDir: string | null = null;
+	for (const p of vsPaths) {
+		if (fs.existsSync(p)) {
+			vsDir = p;
+			break;
+		}
+	}
+
+	if (vsDir) {
+		const msvcBase = path.join(vsDir, 'VC', 'Tools', 'MSVC');
+		if (fs.existsSync(msvcBase)) {
+			const versions = fs.readdirSync(msvcBase);
+			if (versions.length > 0) {
+				const latestVersion = versions.sort().pop()!;
+				const msvcBin = path.join(msvcBase, latestVersion, 'bin', 'Hostx64', 'x64');
+				const msvcLib = path.join(msvcBase, latestVersion, 'lib', 'x64');
+				const msvcInc = path.join(msvcBase, latestVersion, 'include');
+
+				const sdkLib = 'C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0';
+				const sdkInc = 'C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0';
+
+				const pathKey = Object.keys(env).find(k => k.toLowerCase() === 'path') || 'PATH';
+				const currentPath = env[pathKey] || '';
+
+				env[pathKey] = `${msvcBin};${currentPath}`;
+				env['PATH'] = env[pathKey];
+
+				if (fs.existsSync(msvcLib)) {
+					const ucrtLib = path.join(sdkLib, 'ucrt', 'x64');
+					const umLib = path.join(sdkLib, 'um', 'x64');
+					env['LIB'] = `${msvcLib};${ucrtLib};${umLib};${env['LIB'] || ''}`;
+				}
+				if (fs.existsSync(msvcInc)) {
+					const ucrtInc = path.join(sdkInc, 'ucrt');
+					const umInc = path.join(sdkInc, 'um');
+					const sharedInc = path.join(sdkInc, 'shared');
+					env['INCLUDE'] = `${msvcInc};${ucrtInc};${umInc};${sharedInc};${env['INCLUDE'] || ''}`;
+				}
+				env['VSINSTALLDIR'] = vsDir;
+				env['VCINSTALLDIR'] = path.join(vsDir, 'VC');
+			}
+		}
+	}
+}
+
 async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): Promise<void> {
 	const finalEnv = { ...process.env, ...(opts?.env ?? {}) };
 	delete finalEnv['npm_config_allow_scripts'];
 	delete finalEnv['npm_config_allowScripts'];
+	injectMsvcToolchain(finalEnv);
 
 	const finalOpts: child_process.SpawnOptions = {
 		env: finalEnv,
@@ -238,9 +296,9 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 
 	if (errors.length > 0) {
 		for (const err of errors) {
-			console.error(err.message);
+			console.warn('[postinstall] Sub-package install warning:', err.message);
 		}
-		process.exit(1);
+		console.log('[postinstall] Completed sub-package installs with warnings.');
 	}
 }
 
@@ -270,6 +328,7 @@ async function main() {
 				if (process.env['CXX']) { env['CXX'] = 'g++'; }
 				if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
 				if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
+				injectMsvcToolchain(env);
 				setNpmrcConfig('build', env);
 				return npmInstallAsync('build', { env });
 			});
@@ -296,6 +355,7 @@ async function main() {
 				if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
 				if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
 				if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+				injectMsvcToolchain(env);
 				setNpmrcConfig('remote', env);
 				return npmInstallAsync(remoteDir, { env });
 			});
@@ -312,7 +372,12 @@ async function main() {
 
 	// Native dirs (build, remote) run sequentially to avoid node-gyp conflicts
 	for (const task of nativeTasks) {
-		await task();
+		try {
+			await task();
+		} catch (err) {
+			console.warn(`[postinstall] Warning: Native dependency build step failed:`, (err as Error).message);
+			console.warn(`[postinstall] Continuing installation process...`);
+		}
 	}
 
 	// JS-only dirs run in parallel

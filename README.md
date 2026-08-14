@@ -1,4 +1,4 @@
-# ⚡ Falkon DevKit — VS Code Recreated in Tauri v2
+# ⚡ Falkon IDE — VS Code Recreated in Tauri v2
 
 A high-performance, lightweight, cross-platform desktop IDE that recreates **Visual Studio Code** using **Tauri v2 + Rust** instead of Electron.
 
@@ -13,7 +13,7 @@ Visual Studio Code is the world's most popular code editor, but its traditional 
 
 ### 💡 The Solution: Rebuilding VS Code on Tauri v2
 
-**Falkon DevKit** leverages the official open-source VS Code source code (`microsoft/vscode`), but replaces Electron with **Tauri v2 + Rust**:
+**Falkon IDE** leverages the official open-source VS Code source code (`microsoft/vscode`), but replaces Electron with **Tauri v2 + Rust**:
 
 | Feature / Metric | Standard VS Code (Electron) | Falkon DevKit (Tauri v2 + Rust) |
 | :--- | :--- | :--- |
@@ -129,5 +129,5 @@ npm run sync-upstream [tag]
 
 ## 📄 License
 
-This project is open-source software licensed under the [MIT License](LICENSE).  
+This project is open-source software licensed under the [MIT License](LICENSE).
 *Visual Studio Code source code is Copyright (c) Microsoft Corporation.*

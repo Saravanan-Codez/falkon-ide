@@ -167,17 +167,6 @@ async fn save_file_dialog(default_name: Option<String>) -> Option<String> {
 //  Integrated Terminal (PTY via portable-pty)
 // ─────────────────────────────────────────────
 
-#[derive(Clone, serde::Serialize)]
-struct TerminalDataPayload {
-    id: String,
-    data: String,
-}
-
-#[derive(Clone, serde::Serialize)]
-struct TerminalExitPayload {
-    id: String,
-}
-
 #[tauri::command]
 fn terminal_create(
     state: tauri::State<PtyStore>,
@@ -229,16 +218,11 @@ fn terminal_create(
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => {
-                    let _ = window_clone.emit("terminal-exit", TerminalExitPayload { id: id_clone.clone() });
                     let _ = window_clone.emit(&format!("terminal-exit-{}", id_clone), ());
                     break;
                 }
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = window_clone.emit("terminal-data", TerminalDataPayload {
-                        id: id_clone.clone(),
-                        data: data.clone(),
-                    });
                     let _ = window_clone.emit(&format!("terminal-data-{}", id_clone), data);
                 }
             }

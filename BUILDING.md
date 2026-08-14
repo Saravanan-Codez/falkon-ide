@@ -1,4 +1,4 @@
-# Building & Packaging Guide for Falkon DevKit (VS Code in Tauri)
+# Building & Packaging Guide for Falkon IDE (VS Code in Tauri)
 
 This document provides step-by-step instructions for building production installer binaries and standalone executables for **Windows**, **macOS**, and **Linux**.
 
