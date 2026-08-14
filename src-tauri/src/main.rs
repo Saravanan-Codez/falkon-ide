@@ -289,8 +289,16 @@ async fn search_text(
     max_results: Option<usize>,
 ) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
-        let rg = if cfg!(windows) { "rg.exe" } else { "rg" };
-        let mut cmd = std::process::Command::new(rg);
+        let rg_bin_name = if cfg!(windows) { "rg.exe" } else { "rg" };
+        let node_modules_rg = Path::new(&workspace).join("node_modules").join("@vscode").join("ripgrep").join("bin").join(rg_bin_name);
+
+        let rg_cmd_path = if node_modules_rg.exists() {
+            node_modules_rg.to_string_lossy().to_string()
+        } else {
+            rg_bin_name.to_string()
+        };
+
+        let mut cmd = std::process::Command::new(&rg_cmd_path);
         cmd.arg("--json").arg("--max-count").arg("100");
         if !case_sensitive.unwrap_or(false) {
             cmd.arg("-i");
@@ -303,15 +311,18 @@ async fn search_text(
         }
         cmd.arg(&pattern).arg(&workspace);
 
-        let out = cmd.output().map_err(|e| format!("ripgrep not found: {}", e))?;
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        let results: Vec<serde_json::Value> = stdout
-            .lines()
-            .filter_map(|l| serde_json::from_str(l).ok())
-            .filter(|v: &serde_json::Value| v["type"] == "match")
-            .take(max_results.unwrap_or(500))
-            .collect();
-        Ok(json!(results))
+        if let Ok(out) = cmd.output() {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let results: Vec<serde_json::Value> = stdout
+                .lines()
+                .filter_map(|l| serde_json::from_str(l).ok())
+                .filter(|v: &serde_json::Value| v["type"] == "match")
+                .take(max_results.unwrap_or(500))
+                .collect();
+            Ok(json!(results))
+        } else {
+            Ok(json!([]))
+        }
     }).await.map_err(|e| e.to_string())?
 }
 
