@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::Emitter;
+use tauri::Manager;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
@@ -28,92 +29,98 @@ type PtyStore = Mutex<HashMap<String, PtySession>>;
 // ─────────────────────────────────────────────
 
 #[tauri::command]
-fn read_file(file_path: String) -> Result<String, String> {
-    fs::read_to_string(&file_path).map_err(|e| e.to_string())
+async fn read_file(file_path: String) -> Result<String, String> {
+    tokio::fs::read_to_string(&file_path).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn write_file(file_path: String, content: String) -> Result<bool, String> {
+async fn write_file(file_path: String, content: String) -> Result<bool, String> {
     if let Some(parent) = Path::new(&file_path).parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
     }
-    fs::write(&file_path, content).map(|_| true).map_err(|e| e.to_string())
+    tokio::fs::write(&file_path, content).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn read_dir(dir_path: String) -> Result<serde_json::Value, String> {
-    let entries = fs::read_dir(&dir_path).map_err(|e| e.to_string())?;
-    let mut vec = Vec::new();
-    for entry in entries {
-        let e = entry.map_err(|er| er.to_string())?;
-        let meta = e.metadata().map_err(|er| er.to_string())?;
-        vec.push(json!({
-            "name": e.file_name().to_string_lossy(),
+async fn read_dir(dir_path: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let entries = fs::read_dir(&dir_path).map_err(|e| e.to_string())?;
+        let mut vec = Vec::new();
+        for entry in entries {
+            let e = entry.map_err(|er| er.to_string())?;
+            let meta = e.metadata().map_err(|er| er.to_string())?;
+            vec.push(json!({
+                "name": e.file_name().to_string_lossy(),
+                "isDirectory": meta.is_dir(),
+                "isFile": meta.is_file(),
+                "isSymlink": meta.file_type().is_symlink(),
+                "size": meta.len(),
+                "mtime": meta.modified().ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64)
+            }));
+        }
+        Ok(json!(vec))
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn stat_file(file_path: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let meta = fs::metadata(&file_path).map_err(|e| e.to_string())?;
+        Ok(json!({
             "isDirectory": meta.is_dir(),
             "isFile": meta.is_file(),
             "isSymlink": meta.file_type().is_symlink(),
             "size": meta.len(),
             "mtime": meta.modified().ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64),
+            "ctime": meta.created().ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64)
-        }));
-    }
-    Ok(json!(vec))
+        }))
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn stat_file(file_path: String) -> Result<serde_json::Value, String> {
-    let meta = fs::metadata(&file_path).map_err(|e| e.to_string())?;
-    Ok(json!({
-        "isDirectory": meta.is_dir(),
-        "isFile": meta.is_file(),
-        "isSymlink": meta.file_type().is_symlink(),
-        "size": meta.len(),
-        "mtime": meta.modified().ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as u64),
-        "ctime": meta.created().ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as u64)
-    }))
+async fn file_exists(file_path: String) -> bool {
+    tokio::task::spawn_blocking(move || Path::new(&file_path).exists()).await.unwrap_or(false)
 }
 
 #[tauri::command]
-fn file_exists(file_path: String) -> bool {
-    Path::new(&file_path).exists()
+async fn create_dir(dir_path: String) -> Result<bool, String> {
+    tokio::fs::create_dir_all(&dir_path).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn create_dir(dir_path: String) -> Result<bool, String> {
-    fs::create_dir_all(&dir_path).map(|_| true).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn rename_file(old_path: String, new_path: String) -> Result<bool, String> {
+async fn rename_file(old_path: String, new_path: String) -> Result<bool, String> {
     if let Some(parent) = Path::new(&new_path).parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
     }
-    fs::rename(&old_path, &new_path).map(|_| true).map_err(|e| e.to_string())
+    tokio::fs::rename(&old_path, &new_path).await.map(|_| true).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn create_temp_file(content: String) -> Result<String, String> {
+async fn create_temp_file(content: String) -> Result<String, String> {
     let mut path = std::env::temp_dir();
     let file_name = format!("falkon_{}.tmp", chrono::Utc::now().timestamp_millis());
     path.push(file_name);
     let p = path.to_string_lossy().to_string();
-    fs::write(&p, content).map_err(|e| e.to_string())?;
+    tokio::fs::write(&p, content).await.map_err(|e| e.to_string())?;
     Ok(p)
 }
 
 #[tauri::command]
-fn delete_file(file_path: String) -> Result<bool, String> {
-    let path = Path::new(&file_path);
-    if path.is_dir() {
-        fs::remove_dir_all(path).map(|_| true).map_err(|e| e.to_string())
-    } else {
-        fs::remove_file(path).map(|_| true).map_err(|e| e.to_string())
-    }
+async fn delete_file(file_path: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = Path::new(&file_path);
+        if path.is_dir() {
+            fs::remove_dir_all(path).map(|_| true).map_err(|e| e.to_string())
+        } else {
+            fs::remove_file(path).map(|_| true).map_err(|e| e.to_string())
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 // ─────────────────────────────────────────────
@@ -156,40 +163,6 @@ async fn save_file_dialog(default_name: Option<String>) -> Option<String> {
 //  Settings Persistence (VS Code's own JSON format)
 // ─────────────────────────────────────────────
 
-fn settings_dir() -> std::path::PathBuf {
-    let mut dir = dirs::config_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    dir.push("Code - OSS");
-    dir.push("User");
-    dir
-}
-
-#[tauri::command]
-fn read_settings() -> Result<String, String> {
-    let path = settings_dir().join("settings.json");
-    if path.exists() {
-        fs::read_to_string(&path).map_err(|e| e.to_string())
-    } else {
-        Ok("{}".to_string())
-    }
-}
-
-#[tauri::command]
-fn write_settings(content: String) -> Result<bool, String> {
-    let dir = settings_dir();
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    fs::write(dir.join("settings.json"), content).map(|_| true).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn read_keybindings() -> Result<String, String> {
-    let path = settings_dir().join("keybindings.json");
-    if path.exists() {
-        fs::read_to_string(&path).map_err(|e| e.to_string())
-    } else {
-        Ok("[]".to_string())
-    }
-}
-
 // ─────────────────────────────────────────────
 //  Integrated Terminal (PTY via portable-pty)
 // ─────────────────────────────────────────────
@@ -223,6 +196,16 @@ fn terminal_create(
         cmd.cwd(cwd);
     }
 
+    // Configure complete interactive terminal environment
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    cmd.env("TERM_PROGRAM", "FalkonIDE");
+    if let Ok(lang) = std::env::var("LANG") {
+        cmd.env("LANG", lang);
+    } else {
+        cmd.env("LANG", "en_US.UTF-8");
+    }
+
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let master = pair.master;
     let writer = master.take_writer().map_err(|e| e.to_string())?;
@@ -231,7 +214,7 @@ fn terminal_create(
     let id_clone = id.clone();
     let window_clone = window.clone();
     std::thread::spawn(move || {
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; 8192];
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => {
@@ -255,7 +238,9 @@ fn terminal_write(state: tauri::State<PtyStore>, id: String, data: String) -> Re
     let mut store = state.lock().unwrap();
     if let Some(session) = store.get_mut(&id) {
         use std::io::Write;
-        session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())
+        session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        session.writer.flush().map_err(|e| e.to_string())?;
+        Ok(())
     } else {
         Err(format!("PTY session '{}' not found", id))
     }
@@ -295,7 +280,7 @@ fn terminal_kill(state: tauri::State<PtyStore>, id: String) -> Result<(), String
 // ─────────────────────────────────────────────
 
 #[tauri::command]
-fn search_text(
+async fn search_text(
     workspace: String,
     pattern: String,
     include: Option<String>,
@@ -303,36 +288,51 @@ fn search_text(
     case_sensitive: Option<bool>,
     max_results: Option<usize>,
 ) -> Result<serde_json::Value, String> {
-    let rg = if cfg!(windows) { "rg.exe" } else { "rg" };
-    let mut cmd = std::process::Command::new(rg);
-    cmd.arg("--json").arg("--max-count").arg("100");
-    if !case_sensitive.unwrap_or(false) {
-        cmd.arg("-i");
-    }
-    if let Some(inc) = include {
-        cmd.arg("-g").arg(inc);
-    }
-    if let Some(exc) = exclude {
-        cmd.arg("--glob").arg(format!("!{}", exc));
-    }
-    cmd.arg(&pattern).arg(&workspace);
+    tokio::task::spawn_blocking(move || {
+        let rg_bin_name = if cfg!(windows) { "rg.exe" } else { "rg" };
+        let node_modules_rg = Path::new(&workspace).join("node_modules").join("@vscode").join("ripgrep").join("bin").join(rg_bin_name);
 
-    let out = cmd.output().map_err(|e| format!("ripgrep not found: {}", e))?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let results: Vec<serde_json::Value> = stdout
-        .lines()
-        .filter_map(|l| serde_json::from_str(l).ok())
-        .filter(|v: &serde_json::Value| v["type"] == "match")
-        .take(max_results.unwrap_or(500))
-        .collect();
-    Ok(json!(results))
+        let rg_cmd_path = if node_modules_rg.exists() {
+            node_modules_rg.to_string_lossy().to_string()
+        } else {
+            rg_bin_name.to_string()
+        };
+
+        let mut cmd = std::process::Command::new(&rg_cmd_path);
+        cmd.arg("--json").arg("--max-count").arg("100");
+        if !case_sensitive.unwrap_or(false) {
+            cmd.arg("-i");
+        }
+        if let Some(inc) = include {
+            cmd.arg("-g").arg(inc);
+        }
+        if let Some(exc) = exclude {
+            cmd.arg("--glob").arg(format!("!{}", exc));
+        }
+        cmd.arg(&pattern).arg(&workspace);
+
+        if let Ok(out) = cmd.output() {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let results: Vec<serde_json::Value> = stdout
+                .lines()
+                .filter_map(|l| serde_json::from_str(l).ok())
+                .filter(|v: &serde_json::Value| v["type"] == "match")
+                .take(max_results.unwrap_or(500))
+                .collect();
+            Ok(json!(results))
+        } else {
+            Ok(json!([]))
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn search_files(workspace: String, pattern: String) -> Result<serde_json::Value, String> {
-    let mut results = Vec::new();
-    search_files_recursive(Path::new(&workspace), &pattern.to_lowercase(), &mut results, 0);
-    Ok(json!(results))
+async fn search_files(workspace: String, pattern: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let mut results = Vec::new();
+        search_files_recursive(Path::new(&workspace), &pattern.to_lowercase(), &mut results, 0);
+        Ok(json!(results))
+    }).await.map_err(|e| e.to_string())?
 }
 
 fn search_files_recursive(dir: &Path, pattern: &str, results: &mut Vec<String>, depth: usize) {
@@ -370,75 +370,97 @@ fn git_cmd(args: &[&str], cwd: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn git_branch(cwd: Option<String>) -> Result<Option<String>, String> {
-    let dir = cwd.unwrap_or_else(|| ".".to_string());
-    let s = git_cmd(&["branch", "--show-current"], &dir)?;
-    let s = s.trim().to_string();
-    if s.is_empty() { Ok(None) } else { Ok(Some(s)) }
+async fn git_branch(cwd: Option<String>) -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let dir = cwd.unwrap_or_else(|| ".".to_string());
+        let s = git_cmd(&["branch", "--show-current"], &dir)?;
+        let s = s.trim().to_string();
+        if s.is_empty() { Ok(None) } else { Ok(Some(s)) }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_status(cwd: Option<String>) -> Result<String, String> {
-    git_cmd(&["status", "--porcelain"], &cwd.unwrap_or_else(|| ".".to_string()))
+async fn git_status(cwd: Option<String>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["status", "--porcelain"], &cwd.unwrap_or_else(|| ".".to_string()))
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_is_repo(cwd: Option<String>) -> bool {
-    Command::new("git")
-        .args(["rev-parse", "--git-dir"])
-        .current_dir(cwd.unwrap_or_else(|| ".".to_string()))
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+async fn git_is_repo(cwd: Option<String>) -> bool {
+    tokio::task::spawn_blocking(move || {
+        Command::new("git")
+            .args(["rev-parse", "--git-dir"])
+            .current_dir(cwd.unwrap_or_else(|| ".".to_string()))
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }).await.unwrap_or(false)
 }
 
 #[tauri::command]
-fn git_log(cwd: String, max: Option<usize>) -> Result<String, String> {
-    let n = max.unwrap_or(50).to_string();
-    git_cmd(&["log", "--oneline", &format!("-{}", n)], &cwd)
+async fn git_log(cwd: String, max: Option<usize>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let n = max.unwrap_or(50).to_string();
+        git_cmd(&["log", "--oneline", &format!("-{}", n)], &cwd)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_diff(cwd: String, staged: Option<bool>) -> Result<String, String> {
-    if staged.unwrap_or(false) {
-        git_cmd(&["diff", "--cached"], &cwd)
-    } else {
-        git_cmd(&["diff"], &cwd)
-    }
+async fn git_diff(cwd: String, staged: Option<bool>) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        if staged.unwrap_or(false) {
+            git_cmd(&["diff", "--cached"], &cwd)
+        } else {
+            git_cmd(&["diff"], &cwd)
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_stage(cwd: String, path: String) -> Result<bool, String> {
-    git_cmd(&["add", &path], &cwd).map(|_| true)
+async fn git_stage(cwd: String, path: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["add", &path], &cwd).map(|_| true)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_unstage(cwd: String, path: String) -> Result<bool, String> {
-    git_cmd(&["restore", "--staged", &path], &cwd).map(|_| true)
+async fn git_unstage(cwd: String, path: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["restore", "--staged", &path], &cwd).map(|_| true)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_commit(cwd: String, message: String) -> Result<bool, String> {
-    git_cmd(&["commit", "-m", &message], &cwd).map(|_| true)
+async fn git_commit(cwd: String, message: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["commit", "-m", &message], &cwd).map(|_| true)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_push(cwd: String) -> Result<String, String> {
-    git_cmd(&["push"], &cwd)
+async fn git_push(cwd: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["push"], &cwd)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_pull(cwd: String) -> Result<String, String> {
-    git_cmd(&["pull"], &cwd)
+async fn git_pull(cwd: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        git_cmd(&["pull"], &cwd)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_checkout(cwd: String, branch: String, create: Option<bool>) -> Result<bool, String> {
-    if create.unwrap_or(false) {
-        git_cmd(&["checkout", "-b", &branch], &cwd).map(|_| true)
-    } else {
-        git_cmd(&["checkout", &branch], &cwd).map(|_| true)
-    }
+async fn git_checkout(cwd: String, branch: String, create: Option<bool>) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        if create.unwrap_or(false) {
+            git_cmd(&["checkout", "-b", &branch], &cwd).map(|_| true)
+        } else {
+            git_cmd(&["checkout", &branch], &cwd).map(|_| true)
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 // ─────────────────────────────────────────────
@@ -469,6 +491,46 @@ fn run_cimple(entry: String, options: Option<serde_json::Value>) -> Result<serde
     run_falkon(entry, options)
 }
 
+fn settings_dir() -> std::path::PathBuf {
+    let base = dirs::config_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    let falkon_dir = base.join("Falkon IDE").join("User");
+    if falkon_dir.exists() {
+        return falkon_dir;
+    }
+    let code_oss_dir = base.join("Code - OSS").join("User");
+    if code_oss_dir.exists() {
+        return code_oss_dir;
+    }
+    falkon_dir
+}
+
+#[tauri::command]
+fn read_settings() -> Result<String, String> {
+    let path = settings_dir().join("settings.json");
+    if path.exists() {
+        fs::read_to_string(&path).map_err(|e| e.to_string())
+    } else {
+        Ok("{}".to_string())
+    }
+}
+
+#[tauri::command]
+fn write_settings(content: String) -> Result<bool, String> {
+    let dir = settings_dir();
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::write(dir.join("settings.json"), content).map(|_| true).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_keybindings() -> Result<String, String> {
+    let path = settings_dir().join("keybindings.json");
+    if path.exists() {
+        fs::read_to_string(&path).map_err(|e| e.to_string())
+    } else {
+        Ok("[]".to_string())
+    }
+}
+
 #[tauri::command]
 fn window_minimize(window: tauri::Window) -> Result<(), String> {
     window.minimize().map_err(|e| e.to_string())
@@ -497,78 +559,84 @@ fn get_server_authority() -> String {
 }
 
 // ─────────────────────────────────────────────
-//  Node.js Extension Host Sidecar Supervisor
+//  Open URL in System Browser (cross-platform)
 // ─────────────────────────────────────────────
+// Works on:
+//   Linux:   xdg-open (all distros, X11 + Wayland)
+//   macOS:   open
+//   Windows: PowerShell Start-Process
+//   ARM:     same commands work
 
-struct ServerManager {
-    #[allow(dead_code)]
-    child: Mutex<Option<std::process::Child>>,
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("xdg-open failed: {e}"))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("open failed: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("powershell")
+            .args(&["-NoProfile", "-NonInteractive", "-Command", &format!("Start-Process '{}'", url)])
+            .spawn()
+            .map_err(|e| format!("PowerShell Start-Process failed: {e}"))?;
+    }
+    Ok(())
 }
 
-fn find_server_script() -> Option<std::path::PathBuf> {
-    let candidates = [
-        // 1. Current working directory
-        std::env::current_dir().ok().map(|d| d.join("src").join("server-main.js")),
-        std::env::current_dir().ok().map(|d| d.join("server-main.js")),
-        // 2. Executable directory parent
-        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
-        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|d| d.parent()).map(|d| d.to_path_buf())).map(|d| d.join("src").join("server-main.js")),
-        // 3. Compile-time manifest dir fallback
-        option_env!("CARGO_MANIFEST_DIR").map(|d| {
-            let mut p = std::path::PathBuf::from(d);
-            if p.ends_with("src-tauri") { p.pop(); }
-            p.join("src").join("server-main.js")
-        }),
-        // 4. Standard dev path
-        Some(std::path::PathBuf::from("/home/gt/falkon-labs/Falkon_Dev_Kit/src/server-main.js")),
-    ];
+fn start_oauth_callback_server(app_handle: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let listener = match std::net::TcpListener::bind("127.0.0.1:9888") {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("[Falkon OAuth] Port 9888 already bound or unavailable: {}", e);
+                return;
+            }
+        };
 
-    for candidate in candidates.into_iter().flatten() {
-        if candidate.exists() {
-            return Some(candidate);
+        println!("[Falkon OAuth] OAuth callback listener active on http://127.0.0.1:9888");
+
+        for stream in listener.incoming() {
+            if let Ok(mut stream) = stream {
+                use std::io::{Read, Write};
+                let mut buf = [0u8; 4096];
+                if let Ok(n) = stream.read(&mut buf) {
+                    if n > 0 {
+                        let request = String::from_utf8_lossy(&buf[..n]);
+                        if let Some(first_line) = request.lines().next() {
+                            let parts: Vec<&str> = first_line.split_whitespace().collect();
+                            if parts.len() >= 2 {
+                                let path_and_query = parts[1];
+                                let full_uri = format!("http://127.0.0.1:9888{}", path_and_query);
+
+                                if let Some(window) = app_handle.get_webview_window("main") {
+                                    let escaped = full_uri.replace('\\', "\\\\").replace('"', "\\\"");
+                                    let js = format!(
+                                        r#"if (window.__falkon_handle_uri) {{ window.__falkon_handle_uri("{escaped}"); }}"#,
+                                        escaped = escaped
+                                    );
+                                    let _ = window.eval(&js);
+                                }
+
+                                let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!DOCTYPE html><html><head><title>Falkon IDE - Authentication</title><style>body{font-family:system-ui,sans-serif;background:#1e1e1e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;}h2{color:#4ec9b0;}p{color:#cccccc;}</style></head><body><h2>Authentication Successful!</h2><p>You have successfully authenticated. You may close this browser tab and return to Falkon IDE.</p><script>setTimeout(() => window.close(), 2000);</script></body></html>";
+                                let _ = stream.write_all(response.as_bytes());
+                                let _ = stream.flush();
+                            }
+                        }
+                    }
+                }
+            }
         }
-    }
-    None
-}
-
-fn start_node_server() -> Option<std::process::Child> {
-    // Check if server is already running on port 9888
-    if std::net::TcpStream::connect("127.0.0.1:9888").is_ok() {
-        println!("[Falkon] Node.js Extension Host server is already running on 127.0.0.1:9888");
-        return None;
-    }
-
-    let node_cmd = if cfg!(windows) { "node.exe" } else { "node" };
-    let server_path = match find_server_script() {
-        Some(p) => p,
-        None => {
-            eprintln!("[Falkon] Error: Could not locate server-main.js");
-            return None;
-        }
-    };
-
-    let server_path_str = server_path.to_string_lossy().to_string();
-    println!("[Falkon] Starting Node.js Extension Host sidecar: {}", server_path_str);
-
-    let mut cmd = Command::new(node_cmd);
-    cmd.arg(&server_path_str)
-        .arg("--host").arg("127.0.0.1")
-        .arg("--port").arg("9888")
-        .arg("--connection-token").arg("falkon-dev-token")
-        .arg("--accept-server-license-terms");
-
-    match cmd.spawn() {
-        Ok(child) => {
-            println!("[Falkon] Node.js Extension Host sidecar spawned with PID: {}", child.id());
-            // Give the server a brief moment to bind to the port
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            Some(child)
-        }
-        Err(e) => {
-            eprintln!("[Falkon] Warning: Could not spawn Node.js sidecar automatically: {}", e);
-            None
-        }
-    }
+    });
 }
 
 // ─────────────────────────────────────────────
@@ -605,13 +673,47 @@ fn main() {
     }
 
     let pty_store: PtyStore = Mutex::new(HashMap::new());
-    let server_manager = ServerManager {
-        child: Mutex::new(start_node_server()),
-    };
+
+    // Store the last pending deep link URI received before the webview was ready.
+    // Thread-safe: protected by a Mutex so the on_page_load handler can drain it.
+    let pending_uri: std::sync::Arc<Mutex<Option<String>>> = std::sync::Arc::new(Mutex::new(None));
+    let pending_uri_clone = pending_uri.clone();
 
     tauri::Builder::default()
         .manage(pty_store)
-        .manage(server_manager)
+        .on_page_load(move |webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                if let Ok(mut lock) = pending_uri_clone.lock() {
+                    if let Some(uri) = lock.take() {
+                        let escaped = uri.replace('\\', "\\\\").replace('"', "\\\"");
+                        let js = format!(
+                            r#"if (window.__falkon_handle_uri) {{ window.__falkon_handle_uri("{escaped}"); }}"#,
+                            escaped = escaped
+                        );
+                        let _ = webview.eval(&js);
+                    }
+                }
+            }
+        })
+        .setup(move |app| {
+            let webview_window = app.get_webview_window("main")
+                .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
+
+            // Start dedicated OAuth callback listener on port 9888 for GitHub / Microsoft account login
+            start_oauth_callback_server(app.handle().clone());
+
+            // Parse incoming CLI args for OAuth deep-link callback URLs
+            let args: Vec<String> = std::env::args().collect();
+            for arg in args {
+                if arg.starts_with("code-oss://") || arg.starts_with("vscode://") {
+                    let escaped = arg.replace('\\', "\\\\").replace('"', "\\\"");
+                    let js = format!("window.__falkon_handle_uri && window.__falkon_handle_uri(\"{escaped}\");");
+                    let _ = webview_window.eval(&js);
+                }
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_server_authority,
             // File system
@@ -621,6 +723,8 @@ fn main() {
             open_folder_dialog, open_file_dialog, save_file_dialog,
             // Window controls
             window_minimize, window_toggle_maximize, window_close,
+            // Open URL in system browser (for OAuth / auth flows on all platforms)
+            open_external_url,
             // Settings
             read_settings, write_settings, read_keybindings,
             // Terminal

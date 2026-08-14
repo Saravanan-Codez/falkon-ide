@@ -9,10 +9,11 @@
  *  4. Exposes window.__vscode_tauri_bridge__ for the workbench init script
  */
 
-const tauri = () => window.__TAURI__?.core;
 const invoke = (cmd, args) => {
-  const t = tauri();
-  if (t?.invoke) return t.invoke(cmd, args);
+  const win = window;
+  if (win.__TAURI__?.core?.invoke) return win.__TAURI__.core.invoke(cmd, args);
+  if (win.__TAURI_INTERNALS__?.invoke) return win.__TAURI_INTERNALS__.invoke(cmd, args);
+  if (win.__TAURI_INVOKE__) return win.__TAURI_INVOKE__(cmd, args);
   console.warn(`[Tauri] invoke not ready for: ${cmd}`);
   return Promise.resolve(null);
 };
@@ -52,7 +53,10 @@ window.__tauri_terminal__ = {
     rows: (typeof rows === 'number') ? rows : 24,
     cols: (typeof cols === 'number') ? cols : 80
   }),
-  write: (id, data) => invoke('terminal_write', { id, data }),
+  write: (id, data) => {
+    if (!id || data === undefined || data === null) return;
+    invoke('terminal_write', { id, data });
+  },
   resize: (id, rows, cols) => invoke('terminal_resize', {
     id,
     rows: (typeof rows === 'number') ? rows : 24,
@@ -60,14 +64,26 @@ window.__tauri_terminal__ = {
   }),
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
-    if (window.__TAURI__?.event?.listen) {
-      return window.__TAURI__.event.listen(`terminal-data-${id}`, (e) => cb(e.payload));
+    const tauri = window.__TAURI__ || (globalThis).__TAURI__;
+    if (tauri?.event?.listen) {
+      const p = tauri.event.listen(`terminal-data-${id}`, (e) => {
+        if (e && e.payload !== undefined) {
+          cb(e.payload);
+        }
+      });
+      return () => {
+        p.then(u => typeof u === 'function' && u());
+      };
     }
     return () => {};
   },
   onExit: (id, cb) => {
-    if (window.__TAURI__?.event?.listen) {
-      return window.__TAURI__.event.listen(`terminal-exit-${id}`, cb);
+    const tauri = window.__TAURI__ || (globalThis).__TAURI__;
+    if (tauri?.event?.listen) {
+      const p = tauri.event.listen(`terminal-exit-${id}`, cb);
+      return () => {
+        p.then(u => typeof u === 'function' && u());
+      };
     }
     return () => {};
   },
@@ -168,3 +184,17 @@ console.log('[Tauri Shim] All IPC bridges registered:', {
   git: !!window.__tauri_git__,
   settings: !!window.__tauri_settings__,
 });
+
+// ─────────────────────────────────────────────
+//  Desktop App Event Behaviors
+// ─────────────────────────────────────────────
+
+// Prevent browser navigation when files are dropped onto the app
+window.addEventListener('dragover', (e) => e.preventDefault(), false);
+window.addEventListener('drop', (e) => {
+  const tag = e.target?.tagName?.toLowerCase();
+  if (tag !== 'input' && tag !== 'textarea') {
+    e.preventDefault();
+  }
+}, false);
+

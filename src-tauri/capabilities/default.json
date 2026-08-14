@@ -1,0 +1,23 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema/capabilities.json",
+  "identifier": "default",
+  "description": "Default capabilities for Falkon Dev Kit – works on Windows, macOS, Linux (X11 + Wayland), ARM",
+  "windows": ["main"],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:9888/**",
+      "http://localhost:9888/**"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:window:allow-set-decorations",
+    "core:window:allow-start-dragging"
+  ]
+}

@@ -1,8 +1,8 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
+	"nameShort": "Falkon IDE",
+	"nameLong": "Falkon IDE",
+	"applicationName": "falkon-ide",
+	"dataFolderName": ".falkon-ide",
 	"sharedDataFolderName": ".vscode-oss-shared",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
@@ -35,12 +35,13 @@
 	"electronArtifactFeed": "",
 	"urlProtocol": "code-oss",
 	"extensionsGallery": {
-		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
-		"itemUrl": "https://marketplace.visualstudio.com/items",
-		"resourceUrlTemplate": "https://{publisher}.vscode-unpkg.net/{publisher}/{name}/{version}/{path}",
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/item",
+		"resourceUrlTemplate": "https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}",
 		"controlUrl": "https://az764295.vo.msecnd.net/extensions/marketplace.json"
 	},
 	"agentsTelemetryAppName": "agents",
+	"builtInExtensionsEnabledWithAutoUpdates": [],
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
 		{

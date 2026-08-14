@@ -1,21 +1,18 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+import fs from 'fs';
+import path from 'path';
+import cp from 'child_process';
+import minimist from 'minimist';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import open from 'open';
+import https from 'https';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 
-// @ts-check
-
+const require = createRequire(import.meta.url);
 const testWebLocation = require.resolve('@vscode/test-web');
-
-const fs = require('fs');
-const path = require('path');
-const cp = require('child_process');
-
-const minimist = require('minimist');
-const fancyLog = require('fancy-log');
-const ansiColors = require('ansi-colors');
-const open = require('open');
-const https = require('https');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const APP_ROOT = path.join(__dirname, '..');
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
@@ -90,16 +87,16 @@ function startServer(runnerArguments) {
 	console.log(`Starting @vscode/test-web: ${testWebLocation} ${runnerArguments.join(' ')}`);
 	const proc = cp.spawn(process.execPath, [testWebLocation, ...runnerArguments], { env, stdio: 'inherit' });
 
-	proc.on('exit', (code) => process.exit(code));
+	proc.on('exit', (code) => process.exit(code || 0));
 
 	process.on('exit', () => proc.kill());
 	process.on('SIGINT', () => {
 		proc.kill();
-		process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+		process.exit(128 + 2);
 	});
 	process.on('SIGTERM', () => {
 		proc.kill();
-		process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+		process.exit(128 + 15);
 	});
 }
 
@@ -111,7 +108,6 @@ async function directoryExists(path) {
 	}
 }
 
-/** @return {Promise<void>} */
 async function downloadPlaygroundFile(fileName, httpsLocation, destinationRoot) {
 	const destination = path.join(destinationRoot, fileName);
 	await fs.promises.mkdir(path.dirname(destination), { recursive: true });
@@ -130,7 +126,6 @@ async function downloadPlaygroundFile(fileName, httpsLocation, destinationRoot) 
 
 async function ensureWebDevExtensions(verbose) {
 
-	// Playground (https://github.com/microsoft/vscode-web-playground)
 	const webDevPlaygroundRoot = path.join(WEB_DEV_EXTENSIONS_ROOT, 'vscode-web-playground');
 	const webDevPlaygroundExists = await directoryExists(webDevPlaygroundRoot);
 

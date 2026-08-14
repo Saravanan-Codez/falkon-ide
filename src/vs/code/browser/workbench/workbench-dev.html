@@ -28,11 +28,23 @@
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/favicon.ico" type="image/x-icon" />
 		<link rel="manifest" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/manifest.json" crossorigin="use-credentials" />
+		<link rel="stylesheet" href="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.css">
 		<style id="vscode-css-modules" type="text/css" media="screen"></style>
 
+		<style>
+			html, body {
+				width: 100%;
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				overflow: hidden;
+				background-color: #181818 !important;
+				color: #cccccc;
+			}
+		</style>
 	</head>
 
-	<body aria-label="">
+	<body class="vs-dark" aria-label="">
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->

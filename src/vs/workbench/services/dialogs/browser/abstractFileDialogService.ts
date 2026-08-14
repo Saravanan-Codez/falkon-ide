@@ -249,14 +249,26 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
+		// Try native system file picker first (via Node.js server API using zenity/kdialog)
+		const nativePath = await this._callNativeFileDialog('open-file', options.defaultUri?.fsPath);
+		if (nativePath) {
+			const uri = URI.file(nativePath);
+			this.addFileToRecentlyOpened(uri);
+			if (options.forceNewWindow || preferNewWindow) {
+				await this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+			} else {
+				await this.editorService.openEditors([{ resource: uri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+			}
+			return;
+		}
+
+		// Fallback to browser QuickPick dialog if native dialog is unavailable
 		const title = nls.localize('openFile.title', 'Open File');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
-
 		const uris = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		const uri = uris?.[0];
 		if (uri) {
 			this.addFileToRecentlyOpened(uri);
-
 			if (options.forceNewWindow || preferNewWindow) {
 				await this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
@@ -270,14 +282,39 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
+		// Try native system folder picker first (via Node.js server API using zenity/kdialog)
+		const nativePath = await this._callNativeFileDialog('open-folder', options.defaultUri?.fsPath);
+		if (nativePath) {
+			const uri = URI.file(nativePath);
+			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+		}
+
+		// Fallback to browser QuickPick dialog if native dialog is unavailable
 		const title = nls.localize('openFolder.title', 'Open Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
-
 		const uris = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		const uri = uris?.[0];
 		if (uri) {
 			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 		}
+	}
+
+	/**
+	 * Call the Node.js server-side native file dialog API.
+	 * Returns the selected path, or null if cancelled or unavailable.
+	 */
+	protected async _callNativeFileDialog(type: 'open-file' | 'open-folder' | 'save-file', defaultPath?: string): Promise<string | null> {
+		try {
+			const params = defaultPath ? `?path=${encodeURIComponent(defaultPath)}` : '';
+			const resp = await fetch(`http://127.0.0.1:9888/api/dialog/${type}${params}`);
+			if (resp.ok) {
+				const data = await resp.json() as { path?: string | null };
+				return data.path || null;
+			}
+		} catch {
+			// Server API unavailable – fall through to browser dialog
+		}
+		return null;
 	}
 
 	protected async pickWorkspaceAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {

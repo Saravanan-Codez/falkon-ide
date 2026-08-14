@@ -2,6 +2,14 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Files to exclude from CSS collection (previously generated output files that
+// cause a recursive bundling loop and blow up the CSS size to 70+ MB)
+const EXCLUDED_CSS_FILES = new Set([
+  path.resolve('src/vs/code/browser/workbench/workbench.css'),
+  path.resolve('src/dist/workbench.css'),
+  path.resolve('src/dist/all-components.css'),
+]);
+
 function findFiles(dir, ext, fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
   const items = fs.readdirSync(dir, { withFileTypes: true });
@@ -12,7 +20,10 @@ function findFiles(dir, ext, fileList = []) {
         findFiles(fullPath, ext, fileList);
       }
     } else if (item.isFile() && item.name.endsWith(ext)) {
-      fileList.push(fullPath);
+      // Skip any previously bundled output files to prevent recursive inclusion
+      if (!EXCLUDED_CSS_FILES.has(path.resolve(fullPath))) {
+        fileList.push(fullPath);
+      }
     }
   }
   return fileList;
@@ -22,11 +33,51 @@ async function bundleTauriVSCode() {
   console.log('📦 Bundling VS Code Web Workbench for Tauri...');
   const startTime = Date.now();
 
+  // Apply FalkonIDE.svg logo across all project locations
+  try {
+    await import('./apply-falkon-logo.mjs');
+  } catch (e) {
+    console.warn('⚠️ Could not run apply-falkon-logo:', e);
+  }
+
+  // Build all 38 built-in extension modules (Git, TypeScript, Markdown, Copilot, etc.)
+  try {
+    await import('./build/build-all-extensions.mjs');
+  } catch (e) {
+    console.warn('⚠️ Could not run build-all-extensions:', e);
+  }
+
   if (!fs.existsSync('src/dist')) {
     fs.mkdirSync('src/dist', { recursive: true });
   }
 
+  // Remove stale output CSS files before bundling to prevent recursive inclusion
+  const staleFiles = [
+    'src/dist/workbench.css',
+    'src/dist/all-components.css',
+    'src/vs/code/browser/workbench/workbench.css',
+  ];
+  for (const f of staleFiles) {
+    if (fs.existsSync(f)) fs.unlinkSync(f);
+  }
+
   try {
+    // Prefer .ts over .js when importing
+    const preferTsPlugin = {
+      name: 'prefer-ts',
+      setup(build) {
+        build.onResolve({ filter: /\.js$/ }, args => {
+          if (args.path.startsWith('.')) {
+            const dir = args.resolveDir;
+            const tsPath = path.resolve(dir, args.path.replace(/\.js$/, '.ts'));
+            if (fs.existsSync(tsPath)) {
+              return { path: tsPath };
+            }
+          }
+        });
+      }
+    };
+
     // 1. Bundle JavaScript Workbench
     console.log('   - Bundling workbench.ts (browser launcher)...');
     await esbuild.build({
@@ -37,6 +88,8 @@ async function bundleTauriVSCode() {
       target: 'es2022',
       platform: 'browser',
       tsconfig: 'tsconfig.json',
+      plugins: [preferTsPlugin],
+      minify: true,
       banner: {
         js: `// VS Code Web Workbench bundle (Tauri edition)\n`,
       },
@@ -85,7 +138,7 @@ async function bundleTauriVSCode() {
 
     // Generate combined CSS with relative imports
     const combinedCss = allCssFiles
-      .map(file => `@import "${path.resolve(file)}";`)
+      .map(file => `@import "${path.resolve(file).replace(/\\/g, '/')}";`)
       .join('\n');
     fs.writeFileSync('src/dist/all-components.css', combinedCss);
 
@@ -94,6 +147,7 @@ async function bundleTauriVSCode() {
       entryPoints: ['src/dist/all-components.css'],
       bundle: true,
       outfile: 'src/dist/workbench.css',
+      minify: true,
       loader: {
         '.ttf': 'dataurl',
         '.woff': 'dataurl',
@@ -122,6 +176,231 @@ async function bundleTauriVSCode() {
     }
     if (!fs.existsSync('src/nls.messages.json')) {
       fs.writeFileSync('src/nls.messages.json', '{}\n');
+    }
+
+function copyExtensionDir(srcDir, destDir) {
+  if (!fs.existsSync(srcDir)) return;
+  fs.mkdirSync(destDir, { recursive: true });
+  const items = fs.readdirSync(srcDir, { withFileTypes: true });
+  for (const item of items) {
+    if (item.name === 'node_modules' || item.name === 'src' || item.name === 'test' || item.name === '.git') continue;
+    const srcPath = path.join(srcDir, item.name);
+    const destPath = path.join(destDir, item.name);
+    if (item.isDirectory()) {
+      copyExtensionDir(srcPath, destPath);
+    } else if (item.isFile()) {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
+  console.log('   - Processing and copying built-in extension assets...');
+  const bundledExtensions = [];
+  if (!fs.existsSync(extensionsSrcDir)) return bundledExtensions;
+
+  fs.mkdirSync(extensionsDestDir, { recursive: true });
+  const entries = fs.readdirSync(extensionsSrcDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const extSrcPath = path.join(extensionsSrcDir, entry.name);
+    const pkgJsonPath = path.join(extSrcPath, 'package.json');
+    if (!fs.existsSync(pkgJsonPath)) continue;
+
+    try {
+      const packageJSON = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+      if (!packageJSON.name || !packageJSON.publisher) continue;
+
+      // Ensure extensionKind supports web execution for built-in extensions (Git, Language Features, Themes)
+      packageJSON.extensionKind = ['ui', 'workspace', 'web'];
+      if (!packageJSON.browser && packageJSON.main) {
+        packageJSON.browser = packageJSON.main;
+      }
+
+      let packageNLS;
+      const nlsPath = path.join(extSrcPath, 'package.nls.json');
+      if (fs.existsSync(nlsPath)) {
+        try {
+          packageNLS = JSON.parse(fs.readFileSync(nlsPath, 'utf8'));
+        } catch (_) {}
+      }
+
+      // Copy extension assets to dist/extensions/<name>
+      const extDestPath = path.join(extensionsDestDir, entry.name);
+      copyExtensionDir(extSrcPath, extDestPath);
+
+      bundledExtensions.push({
+        extensionPath: entry.name,
+        packageJSON,
+        ...(packageNLS ? { packageNLS } : {})
+      });
+    } catch (e) {
+      console.warn(`    ⚠️ Failed to process extension ${entry.name}:`, e.message);
+    }
+  }
+
+  console.log(`     Bundled ${bundledExtensions.length} built-in extensions to ${extensionsDestDir}`);
+  return bundledExtensions;
+}
+
+    // Populate dist/ directory for Tauri frontendDist
+    fs.mkdirSync('dist/dist', { recursive: true });
+    fs.mkdirSync('dist/js', { recursive: true });
+    fs.mkdirSync('dist/out/vs/code/browser/workbench', { recursive: true });
+    fs.copyFileSync('src/dist/workbench.js', 'dist/dist/workbench.js');
+    fs.copyFileSync('src/dist/workbench.css', 'dist/dist/workbench.css');
+    fs.copyFileSync('src/dist/workbench.js', 'dist/out/vs/code/browser/workbench/workbench.js');
+    if (fs.existsSync('src/js/tauri-shim.js')) {
+      fs.mkdirSync('js', { recursive: true });
+      fs.mkdirSync('out/js', { recursive: true });
+      fs.copyFileSync('src/js/tauri-shim.js', 'js/tauri-shim.js');
+      fs.copyFileSync('src/js/tauri-shim.js', 'dist/js/tauri-shim.js');
+      fs.copyFileSync('src/js/tauri-shim.js', 'out/js/tauri-shim.js');
+    }
+    if (fs.existsSync('src/resources')) {
+      fs.cpSync('src/resources', 'dist/resources', { recursive: true });
+    }
+
+    // Process and mirror all 90+ built-in extension packages & assets
+    const bundledExtensions = processBuiltinExtensions('extensions', 'dist/extensions');
+    const bundledExtSettings = JSON.stringify(bundledExtensions).replace(/"/g, '&quot;');
+
+    // Generate dist/index.html entrypoint for Tauri (standalone web workbench with built-in extensions)
+    const indexHtmlContent = `<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+		<title>Falkon IDE</title>
+		<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+		<link rel="alternate icon" href="./favicon.ico">
+		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.133.0&quot;,&quot;extensionsGallery&quot;:{&quot;serviceUrl&quot;:&quot;https://open-vsx.org/vscode/gallery&quot;,&quot;itemUrl&quot;:&quot;https://open-vsx.org/item&quot;,&quot;resourceUrlTemplate&quot;:&quot;https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}&quot;}}}">
+		<meta id="vscode-workbench-auth-session" data-settings="">
+		<meta id="vscode-workbench-builtin-extensions" data-settings="${bundledExtSettings}">
+		<link rel="stylesheet" href="./dist/workbench.css">
+		<style>
+			html, body {
+				width: 100%; height: 100%;
+				margin: 0; padding: 0;
+				overflow: hidden;
+				background-color: #1e1e1e;
+				color: #cccccc;
+			}
+			#workbench-container {
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body class="vs-dark" aria-label="">
+		<div id="workbench-container"></div>
+		<script>
+			const _base = new URL('.', window.location.href).href;
+			globalThis._VSCODE_FILE_ROOT = _base;
+			self._VSCODE_FILE_ROOT = _base;
+		</script>
+		<script type="module" src="./js/tauri-shim.js"></script>
+		<script type="module" src="./dist/workbench.js"></script>
+	</body>
+</html>
+`;
+
+
+
+    fs.writeFileSync('dist/index.html', indexHtmlContent);
+    fs.writeFileSync('src/index.html', indexHtmlContent);
+
+    // Mirror necessary runtime assets and fallback stubs for cross-platform VS Code Workbench
+    const keyboardLayoutsDir = 'out/vs/workbench/services/keybinding/browser/keyboardLayouts';
+    fs.mkdirSync(keyboardLayoutsDir, { recursive: true });
+    for (const plat of ['win', 'linux', 'darwin']) {
+      const file = `${keyboardLayoutsDir}/layout.contribution.${plat}.js`;
+      if (!fs.existsSync(file)) {
+        fs.writeFileSync(file, '// Keyboard layout contribution stub for Tauri VS Code\nexport const layout = {};\n');
+      }
+    }
+
+    const workerExtDir = 'out/vs/workbench/services/extensions/worker';
+    fs.mkdirSync(workerExtDir, { recursive: true });
+    if (!fs.existsSync(`${workerExtDir}/webWorkerExtensionHostIframe.html`)) {
+      fs.writeFileSync(
+        `${workerExtDir}/webWorkerExtensionHostIframe.html`,
+        '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>// Extension Host Worker Iframe</script></body></html>\n'
+      );
+    }
+
+    const editorWorkerDir = 'out/vs/editor/common/services';
+    fs.mkdirSync(editorWorkerDir, { recursive: true });
+    if (!fs.existsSync(`${editorWorkerDir}/editorWebWorkerMain.js`)) {
+      fs.writeFileSync(
+        `${editorWorkerDir}/editorWebWorkerMain.js`,
+        '// Editor Web Worker main entry stub\nself.onmessage = function() {};\n'
+      );
+    }
+
+    // Generate out/server-main.js entrypoint for scripts/code-server.js
+    const serverMainContent = `const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const PORT = process.env.VSCODE_SERVER_PORT || 9888;
+const mimeTypes = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf'
+};
+
+const server = http.createServer((req, res) => {
+  let reqPath = req.url.split('?')[0];
+  if (reqPath === '/') reqPath = '/index.html';
+  const filePath = path.join(__dirname, '..', 'dist', reqPath);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    const ext = path.extname(filePath);
+    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+    fs.createReadStream(filePath).pipe(res);
+  } else {
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    fs.createReadStream(indexPath).pipe(res);
+  }
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log('Web UI available at http://127.0.0.1:' + PORT + '/?tkn=falkon-dev-token');
+});
+`;
+    fs.mkdirSync('out', { recursive: true });
+    fs.writeFileSync('out/server-main.js', serverMainContent);
+
+    // VSDA stubs to prevent require('vsda') MODULE_NOT_FOUND errors in Node.js server
+    const vsdaCjsDir = 'node_modules/vsda';
+    fs.mkdirSync(vsdaCjsDir, { recursive: true });
+    fs.writeFileSync(`${vsdaCjsDir}/package.json`, JSON.stringify({ name: "vsda", version: "1.0.0", main: "index.js" }, null, 2));
+    fs.writeFileSync(`${vsdaCjsDir}/index.js`, `
+class Signer { sign() { return ""; } }
+class Validator { validate() { return true; } }
+module.exports = {
+  signer: Signer,
+  validator: Validator,
+  signer_create: () => new Signer(),
+  validator_create: () => new Validator()
+};
+`);
+
+    const vsdaDir = 'node_modules/vsda/rust/web';
+    fs.mkdirSync(vsdaDir, { recursive: true });
+    if (!fs.existsSync(`${vsdaDir}/vsda.js`)) {
+      fs.writeFileSync(`${vsdaDir}/vsda.js`, 'export default function init() { return Promise.resolve(); }\nexport class signer { sign() { return ""; } }\nexport class validator { validate() { return true; } }\n');
+    }
+    if (!fs.existsSync(`${vsdaDir}/vsda_bg.wasm`)) {
+      fs.writeFileSync(`${vsdaDir}/vsda_bg.wasm`, Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]));
     }
 
     const cssStats = fs.statSync('src/dist/workbench.css');

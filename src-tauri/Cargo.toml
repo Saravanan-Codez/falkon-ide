@@ -17,3 +17,10 @@ dirs = "5"
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 16
+panic = "abort"
+strip = true

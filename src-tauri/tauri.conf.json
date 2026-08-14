@@ -1,28 +1,29 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Code - OSS",
+  "productName": "Falkon IDE",
   "version": "1.133.0",
-  "identifier": "com.falkon.devkit",
+  "identifier": "com.falkon.ide",
   "build": {
-    "beforeBuildCommand": "",
-    "beforeDevCommand": "",
-    "frontendDist": "../src"
+    "beforeBuildCommand": "node bundle-vscode-tauri.js",
+    "beforeDevCommand": "node bundle-vscode-tauri.js",
+    "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Code - OSS",
+        "title": "Falkon IDE",
         "width": 1400,
         "height": 900,
         "minWidth": 800,
         "minHeight": 600,
         "resizable": true,
         "maximized": true,
-        "decorations": true
+        "decorations": false
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://127.0.0.1:9888 ws://127.0.0.1:9888 https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://127.0.0.1:9888 ws://127.0.0.1:9888 https: blob: data:; img-src 'self' http://127.0.0.1:9888 https: data: blob:; font-src 'self' http://127.0.0.1:9888 https: data:;"
+      "csp": null
     }
   },
   "bundle": {
@@ -34,6 +35,7 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": false
   }
 }
