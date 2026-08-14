@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const args = process.argv.slice(2);
@@ -9,25 +9,44 @@ const extraArgs = args.slice(1);
 const env = { ...process.env };
 
 // ── Inject MSVC + Windows SDK paths ──────────────────────────────────────────
-// Tauri needs link.exe + kernel32.lib to compile the Rust backend.
-// VS BuildTools 18 is installed in the non-standard "18" folder instead of "2022".
-const MSVC_BASE = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Tools\\MSVC\\14.51.36231';
-const WIN_SDK   = 'C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0';
-const WIN_INC   = 'C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0';
+function findMsvc() {
+  if (process.platform !== 'win32') return null;
+  const vsPaths = [
+    'C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools',
+    'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community',
+    'C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional',
+    'C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise',
+    'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community',
+    'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools',
+  ];
+  for (const vsDir of vsPaths) {
+    const msvcBase = join(vsDir, 'VC', 'Tools', 'MSVC');
+    if (existsSync(msvcBase)) {
+      const versions = readdirSync(msvcBase);
+      if (versions.length > 0) {
+        const latest = versions.sort().pop();
+        return { vsDir, msvcDir: join(msvcBase, latest) };
+      }
+    }
+  }
+  return null;
+}
 
-const msvcBin  = join(MSVC_BASE, 'bin', 'HostX64', 'x64');
-const msvcLib  = join(MSVC_BASE, 'lib', 'x64');
-const msvcInc  = join(MSVC_BASE, 'include');
-const sdkUmLib = join(WIN_SDK, 'um', 'x64');
-const sdkUcLib = join(WIN_SDK, 'ucrt', 'x64');
-const sdkUcInc = join(WIN_INC, 'ucrt');
-const sdkUmInc = join(WIN_INC, 'um');
-const sdkShInc = join(WIN_INC, 'shared');
+const msvcInfo = findMsvc();
+if (msvcInfo) {
+  console.log('🔧 Injecting MSVC + Windows SDK paths from:', msvcInfo.vsDir);
+  const msvcBin = join(msvcInfo.msvcDir, 'bin', 'HostX64', 'x64');
+  const msvcLib = join(msvcInfo.msvcDir, 'lib', 'x64');
+  const msvcInc = join(msvcInfo.msvcDir, 'include');
 
-if (existsSync(msvcBin)) {
-  console.log('🔧 Injecting MSVC + Windows SDK paths...');
-  
-  // Case-insensitive PATH lookup on Windows (env.Path vs env.PATH)
+  const WIN_SDK = 'C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0';
+  const WIN_INC = 'C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0';
+  const sdkUmLib = join(WIN_SDK, 'um', 'x64');
+  const sdkUcLib = join(WIN_SDK, 'ucrt', 'x64');
+  const sdkUcInc = join(WIN_INC, 'ucrt');
+  const sdkUmInc = join(WIN_INC, 'um');
+  const sdkShInc = join(WIN_INC, 'shared');
+
   const origPath = env.PATH || env.Path || env.path || process.env.PATH || process.env.Path || '';
   const injectedPath = `${msvcBin};${origPath}`;
   env.PATH = injectedPath;
@@ -40,12 +59,10 @@ if (existsSync(msvcBin)) {
   const origInc = env.INCLUDE || env.Include || process.env.INCLUDE || '';
   env.INCLUDE = [msvcInc, sdkUcInc, sdkUmInc, sdkShInc, origInc].filter(Boolean).join(';');
   env.Include = env.INCLUDE;
-
-  // Tell VS detection where to find it (for tools that check env vars)
-  env.vs2022_install = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools';
-  env.VSCMD_VER = '17.14.36231';
+  env.VSINSTALLDIR = msvcInfo.vsDir;
+  env.VCINSTALLDIR = join(msvcInfo.vsDir, 'VC');
 } else if (process.platform === 'win32') {
-  console.warn('⚠️  MSVC Build Tools not found at expected path. Cargo may fail to link.');
+  console.warn('⚠️ MSVC Build Tools not found at standard paths. Cargo will use system PATH.');
 }
 
 // Unset Linux-specific variables if they exist
