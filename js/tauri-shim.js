@@ -47,12 +47,33 @@ window.__tauri_dialogs__ = {
 //  Terminal (PTY)
 // ─────────────────────────────────────────────
 
+const listen = (event, handler) => {
+  const win = window;
+  if (win.__TAURI__?.event?.listen) {
+    return win.__TAURI__.event.listen(event, handler);
+  }
+  if (win.__TAURI_INTERNALS__?.invoke) {
+    return win.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event,
+      target: { kind: 'Any' },
+      handler: (e) => handler(e)
+    });
+  }
+  return Promise.resolve(() => {});
+};
+
 window.__tauri_terminal__ = {
-  create: (cwd, rows, cols) => invoke('terminal_create', {
-    cwd: (typeof cwd === 'string' && cwd.length > 0) ? cwd : null,
-    rows: (typeof rows === 'number') ? rows : 24,
-    cols: (typeof cols === 'number') ? cols : 80
-  }),
+  create: (cwd, rows, cols) => {
+    let cleanCwd = typeof cwd === 'string' ? cwd : null;
+    if (cleanCwd && cleanCwd.startsWith('file://')) {
+      cleanCwd = cleanCwd.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
+    }
+    return invoke('terminal_create', {
+      cwd: cleanCwd,
+      rows: (typeof rows === 'number' && rows > 0) ? rows : 24,
+      cols: (typeof cols === 'number' && cols > 0) ? cols : 80
+    });
+  },
   write: (id, data) => {
     if (!id || data === undefined || data === null) return;
     invoke('terminal_write', { id, data });
@@ -64,28 +85,23 @@ window.__tauri_terminal__ = {
   }),
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
-    const tauri = window.__TAURI__ || (globalThis).__TAURI__;
-    if (tauri?.event?.listen) {
-      const p = tauri.event.listen(`terminal-data-${id}`, (e) => {
-        if (e && e.payload !== undefined) {
-          cb(e.payload);
-        }
-      });
-      return () => {
-        p.then(u => typeof u === 'function' && u());
-      };
-    }
-    return () => {};
+    const unlistenPromise = listen(`terminal-data-${id}`, (e) => {
+      const data = typeof e === 'string' ? e : (e?.payload !== undefined ? e.payload : e);
+      if (data !== undefined && data !== null) {
+        cb(data);
+      }
+    });
+    return () => {
+      unlistenPromise.then(u => typeof u === 'function' && u());
+    };
   },
   onExit: (id, cb) => {
-    const tauri = window.__TAURI__ || (globalThis).__TAURI__;
-    if (tauri?.event?.listen) {
-      const p = tauri.event.listen(`terminal-exit-${id}`, cb);
-      return () => {
-        p.then(u => typeof u === 'function' && u());
-      };
-    }
-    return () => {};
+    const unlistenPromise = listen(`terminal-exit-${id}`, () => {
+      cb();
+    });
+    return () => {
+      unlistenPromise.then(u => typeof u === 'function' && u());
+    };
   },
 };
 
@@ -198,3 +214,160 @@ window.addEventListener('drop', (e) => {
   }
 }, false);
 
+// ─────────────────────────────────────────────
+//  Marketplace CORS Bypass - fetch + XHR
+//  VS Code's extension gallery uses XMLHttpRequest,
+//  NOT window.fetch, so we must intercept both.
+// ─────────────────────────────────────────────
+
+function isMarketplaceUrl(url) {
+  return typeof url === 'string' && (
+    url.includes('marketplace.visualstudio.com') ||
+    url.includes('open-vsx.org')
+  );
+}
+
+function parseHeaders(headersInput) {
+  const result = {};
+  if (!headersInput) return result;
+  if (typeof Headers !== 'undefined' && headersInput instanceof Headers) {
+    headersInput.forEach((val, key) => {
+      if (typeof key === 'string' && typeof val === 'string') {
+        result[key.toLowerCase()] = val;
+      }
+    });
+  } else if (typeof headersInput === 'object') {
+    for (const [key, val] of Object.entries(headersInput)) {
+      if (typeof key === 'string' && typeof val === 'string') {
+        result[key.toLowerCase()] = val;
+      }
+    }
+  }
+  return result;
+}
+
+async function proxyMarketplaceRequest(url, method, headers, body) {
+  const safeHeaders = parseHeaders(headers);
+  delete safeHeaders['accept-encoding'];
+  delete safeHeaders['content-length'];
+  delete safeHeaders['user-agent'];
+  delete safeHeaders['accept'];
+
+  return invoke('marketplace_proxy', {
+    url,
+    method: method || 'GET',
+    headers: safeHeaders,
+    body: body ? String(body) : null
+  });
+}
+
+// ── Intercept XMLHttpRequest ──────────────────
+const OriginalXHR = window.XMLHttpRequest;
+window.XMLHttpRequest = function() {
+  const xhr = new OriginalXHR();
+  let _method = 'GET';
+  let _url = '';
+  let _requestHeaders = {};
+
+  const originalOpen = xhr.open.bind(xhr);
+  xhr.open = function(method, url, ...rest) {
+    _method = method;
+    _url = typeof url === 'string' ? url : (url?.toString ? url.toString() : String(url));
+    return originalOpen(method, url, ...rest);
+  };
+
+  const originalSetRequestHeader = xhr.setRequestHeader.bind(xhr);
+  xhr.setRequestHeader = function(name, value) {
+    if (typeof name === 'string') {
+      _requestHeaders[name.toLowerCase()] = String(value);
+    }
+    return originalSetRequestHeader(name, value);
+  };
+
+  const originalSend = xhr.send.bind(xhr);
+  xhr.send = function(body) {
+    if (!isMarketplaceUrl(_url)) {
+      return originalSend(body);
+    }
+
+    proxyMarketplaceRequest(_url, _method, _requestHeaders, body)
+      .then(text => {
+        Object.defineProperty(xhr, 'status', { get: () => 200, configurable: true });
+        Object.defineProperty(xhr, 'statusText', { get: () => 'OK', configurable: true });
+        Object.defineProperty(xhr, 'readyState', { get: () => 4, configurable: true });
+        Object.defineProperty(xhr, 'responseText', { get: () => text, configurable: true });
+        Object.defineProperty(xhr, 'response', { get: () => text, configurable: true });
+        xhr.getAllResponseHeaders = () => 'content-type: application/json\r\n';
+        xhr.getResponseHeader = (name) => {
+          if (name && name.toLowerCase() === 'content-type') return 'application/json';
+          return null;
+        };
+        if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
+        if (typeof xhr.onload === 'function') xhr.onload();
+        xhr.dispatchEvent(new Event('readystatechange'));
+        xhr.dispatchEvent(new Event('load'));
+        xhr.dispatchEvent(new Event('loadend'));
+      })
+      .catch(err => {
+        console.warn('[Falkon XHR Proxy] Proxy error:', err);
+        Object.defineProperty(xhr, 'status', { get: () => 500, configurable: true });
+        Object.defineProperty(xhr, 'statusText', { get: () => 'Internal Server Error', configurable: true });
+        Object.defineProperty(xhr, 'readyState', { get: () => 4, configurable: true });
+        if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
+        if (typeof xhr.onerror === 'function') xhr.onerror();
+        xhr.dispatchEvent(new Event('readystatechange'));
+        xhr.dispatchEvent(new Event('error'));
+      });
+  };
+
+  return xhr;
+};
+window.XMLHttpRequest.prototype = OriginalXHR.prototype;
+
+// ── Intercept window.fetch ────────────────────
+const originalFetch = window.fetch;
+window.fetch = async function(resource, init) {
+  let url = '';
+  let method = 'GET';
+  let headers = {};
+  let body = null;
+
+  if (typeof resource === 'string') {
+    url = resource;
+  } else if (resource && typeof resource.url === 'string') {
+    url = resource.url;
+    method = resource.method || 'GET';
+    if (resource.headers) {
+      headers = parseHeaders(resource.headers);
+    }
+  } else if (resource && typeof resource.toString === 'function') {
+    url = resource.toString();
+  }
+
+  if (init) {
+    if (init.method) method = init.method;
+    if (init.headers) headers = { ...headers, ...parseHeaders(init.headers) };
+    if (init.body) body = String(init.body);
+  }
+
+  if (isMarketplaceUrl(url)) {
+    try {
+      const responseText = await proxyMarketplaceRequest(url, method, headers, body);
+      if (typeof responseText === 'string') {
+        return new Response(responseText, {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    } catch (err) {
+      console.warn('[Falkon Fetch Proxy] Proxy error:', err);
+      return new Response(JSON.stringify({ error: String(err) }), {
+        status: 500,
+        statusText: 'Internal Server Error',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+  return originalFetch.apply(this, arguments);
+};

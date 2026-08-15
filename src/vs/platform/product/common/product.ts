@@ -90,9 +90,9 @@ else {
 			builtInExtensionsEnabledWithAutoUpdates: [],
 			builtInExtensions: [],
 			extensionsGallery: {
-				serviceUrl: 'https://open-vsx.org/vscode/gallery',
-				itemUrl: 'https://open-vsx.org/item',
-				resourceUrlTemplate: 'https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}',
+				serviceUrl: 'https://marketplace.visualstudio.com/_apis/public/gallery',
+				itemUrl: 'https://marketplace.visualstudio.com/items',
+				resourceUrlTemplate: 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{name}/{version}/vspackage',
 				controlUrl: 'https://az764295.vo.msecnd.net/extensions/marketplace.json'
 			},
 			defaultChatAgent: {

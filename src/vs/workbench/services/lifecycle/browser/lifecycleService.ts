@@ -62,9 +62,8 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		}
 	}
 
-	private vetoBeforeUnload(event: BeforeUnloadEvent): void {
-		event.preventDefault();
-		event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
+	private vetoBeforeUnload(_event: BeforeUnloadEvent): void {
+		// Falkon/Tauri: suppressed — browser "Leave site?" dialogs freeze the native window
 	}
 
 	withExpectedShutdown(reason: ShutdownReason): Promise<void>;

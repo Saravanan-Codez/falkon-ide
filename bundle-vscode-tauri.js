@@ -33,6 +33,16 @@ async function bundleTauriVSCode() {
   console.log('📦 Bundling VS Code Web Workbench for Tauri...');
   const startTime = Date.now();
 
+  // Step 0: Apply Falkon patches to upstream VS Code source files.
+  // This runs BEFORE compilation so changes always survive upstream git pulls.
+  try {
+    const { applyPatches } = await import('./patch-upstream.js');
+    applyPatches();
+  } catch (e) {
+    console.error('❌ patch-upstream.js failed:', e);
+    process.exit(1);
+  }
+
   // Apply FalkonIDE.svg logo across all project locations
   try {
     await import('./apply-falkon-logo.mjs');
@@ -275,7 +285,7 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 		<title>Falkon IDE</title>
 		<link rel="icon" type="image/svg+xml" href="./favicon.svg">
 		<link rel="alternate icon" href="./favicon.ico">
-		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.133.0&quot;,&quot;extensionsGallery&quot;:{&quot;serviceUrl&quot;:&quot;https://open-vsx.org/vscode/gallery&quot;,&quot;itemUrl&quot;:&quot;https://open-vsx.org/item&quot;,&quot;resourceUrlTemplate&quot;:&quot;https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}&quot;}}}">
+		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.133.0&quot;,&quot;extensionsGallery&quot;:{&quot;serviceUrl&quot;:&quot;https://marketplace.visualstudio.com/_apis/public/gallery&quot;,&quot;itemUrl&quot;:&quot;https://marketplace.visualstudio.com/items&quot;,&quot;resourceUrlTemplate&quot;:&quot;https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{name}/{version}/vspackage&quot;}}}">
 		<meta id="vscode-workbench-auth-session" data-settings="">
 		<meta id="vscode-workbench-builtin-extensions" data-settings="${bundledExtSettings}">
 		<link rel="stylesheet" href="./dist/workbench.css">

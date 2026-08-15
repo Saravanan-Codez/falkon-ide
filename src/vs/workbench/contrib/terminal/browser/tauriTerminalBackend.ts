@@ -63,7 +63,7 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 	}
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
-		const tauriTerminal = (globalThis as any).__tauri_terminal__;
+		const tauriTerminal = (globalThis as any).__tauri_terminal__ || (window as any).__tauri_terminal__;
 		if (!tauriTerminal) {
 			return { message: 'Tauri terminal bridge not available' };
 		}
@@ -154,7 +154,12 @@ export class TauriTerminalBackend extends Disposable implements ITerminalBackend
 		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
-		const targetCwd = cwd || (shellLaunchConfig.cwd ? String(shellLaunchConfig.cwd) : '/');
+		let targetCwd = '';
+		if (typeof cwd === 'string' && cwd.length > 0) {
+			targetCwd = cwd;
+		} else if (shellLaunchConfig.cwd) {
+			targetCwd = typeof shellLaunchConfig.cwd === 'string' ? shellLaunchConfig.cwd : (shellLaunchConfig.cwd.fsPath || shellLaunchConfig.cwd.path || '');
+		}
 		return new TauriTerminalChildProcess(targetCwd, cols, rows, this._logService);
 	}
 
@@ -204,11 +209,8 @@ export class TauriTerminalContribution implements IWorkbenchContribution {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
-		const tauriTerminal = (globalThis as any).__tauri_terminal__;
-		if (tauriTerminal) {
-			const backend = instantiationService.createInstance(TauriTerminalBackend);
-			Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-			terminalInstanceService.didRegisterBackend(backend);
-		}
+		const backend = instantiationService.createInstance(TauriTerminalBackend);
+		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
+		terminalInstanceService.didRegisterBackend(backend);
 	}
 }

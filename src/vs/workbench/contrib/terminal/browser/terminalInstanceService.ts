@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { promiseWithResolvers } from '../../../../base/common/async.js';
+import { promiseWithResolvers, timeout } from '../../../../base/common/async.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
@@ -86,8 +86,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> {
 		let backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 		if (!backend) {
-			// Ensure backend is initialized and try again
-			await this._backendRegistration.get(remoteAuthority)?.promise;
+			const reg = this._backendRegistration.get(remoteAuthority);
+			if (reg) {
+				await Promise.race([reg.promise, timeout(1000)]);
+			}
 			backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 		}
 		return backend;

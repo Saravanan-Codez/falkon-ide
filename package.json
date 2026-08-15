@@ -20,6 +20,7 @@
     "build:appimage": "node bundle-vscode-tauri.js && node run-tauri.js build --bundles appimage",
     "sync-upstream": "node scripts/sync-upstream.js",
     "bundle-vs": "node build/build-all-extensions.mjs && node bundle-vscode-tauri.js",
+    "patch": "node patch-upstream.js",
     "unit-test": "node --test tests/*.test.js",
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",

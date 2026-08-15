@@ -118,19 +118,19 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		let defaultProfileName: string | undefined;
 		if (os) {
 			defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-			if (!defaultProfileName || !isString(defaultProfileName)) {
-				return undefined;
-			}
 		} else {
 			defaultProfileName = this._defaultProfileName;
 		}
-		if (!defaultProfileName) {
-			return undefined;
+		if (defaultProfileName) {
+			const found = this.availableProfiles.find(e => e.profileName === defaultProfileName);
+			if (found) return found;
 		}
-
-		// IMPORTANT: Only allow the default profile name to find non-auto detected profiles as
-		// to avoid unsafe path profiles being picked up.
-		return this.availableProfiles.find(e => e.profileName === defaultProfileName && !e.isAutoDetected);
+		const defaultOs = os || OS;
+		return this.availableProfiles.find(e => e.isDefault) || this.availableProfiles[0] || {
+			profileName: defaultOs === OperatingSystem.Windows ? 'PowerShell' : 'bash',
+			path: defaultOs === OperatingSystem.Windows ? 'powershell.exe' : '/bin/bash',
+			isDefault: true
+		};
 	}
 
 	private _getOsKey(os: OperatingSystem): string {
