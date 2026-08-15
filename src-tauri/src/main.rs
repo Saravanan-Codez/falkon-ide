@@ -777,7 +777,14 @@ async fn marketplace_proxy(
 
         if let Some(hdrs) = headers {
             for (k, v) in hdrs {
-                if k.eq_ignore_ascii_case("host") || k.eq_ignore_ascii_case("content-length") { continue; }
+                // Skip hop-by-hop headers that interfere with reqwest's transparent decompression
+                if k.eq_ignore_ascii_case("host")
+                    || k.eq_ignore_ascii_case("content-length")
+                    || k.eq_ignore_ascii_case("accept-encoding")
+                    || k.eq_ignore_ascii_case("transfer-encoding")
+                {
+                    continue;
+                }
                 req = req.header(&k, &v);
             }
         }

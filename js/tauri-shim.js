@@ -221,7 +221,8 @@ window.addEventListener('drop', (e) => {
 const originalFetch = window.fetch;
 window.fetch = async function(resource, init) {
   const url = typeof resource === 'string' ? resource : (resource?.url || '');
-  if (url && (url.includes('marketplace.visualstudio.com') || url.includes('open-vsx.org'))) {
+  const isTauriReady = !!(window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke || window.__TAURI_INVOKE__);
+  if (isTauriReady && url && (url.includes('marketplace.visualstudio.com') || url.includes('open-vsx.org'))) {
     try {
       const method = init?.method || 'GET';
       const body = init?.body ? String(init.body) : null;
@@ -233,8 +234,11 @@ window.fetch = async function(resource, init) {
           headers = { ...init.headers };
         }
       }
+      // Remove headers that break reqwest's transparent decompression
+      delete headers['accept-encoding'];
+      delete headers['Accept-Encoding'];
       const responseText = await invoke('marketplace_proxy', { url, method, headers, body });
-      if (typeof responseText === 'string') {
+      if (typeof responseText === 'string' && responseText.length > 0) {
         return new Response(responseText, {
           status: 200,
           statusText: 'OK',
