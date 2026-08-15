@@ -8,7 +8,7 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ struct PtySession {
     child: Box<dyn portable_pty::Child + Send>,
 }
 
-type PtyStore = Mutex<HashMap<String, PtySession>>;
+type PtyStore = Arc<Mutex<HashMap<String, PtySession>>>;
 
 // ─────────────────────────────────────────────
 //  File System Commands
@@ -168,120 +168,132 @@ async fn save_file_dialog(default_name: Option<String>) -> Option<String> {
 // ─────────────────────────────────────────────
 
 #[tauri::command]
-fn terminal_create(
-    state: tauri::State<PtyStore>,
+async fn terminal_create(
+    state: tauri::State<'_, PtyStore>,
     window: tauri::Window,
     cols: Option<u16>,
     rows: Option<u16>,
     cwd: Option<String>,
 ) -> Result<String, String> {
-    let id = Uuid::new_v4().to_string();
-    let pty_system = NativePtySystem::default();
-    let size = PtySize {
-        rows: rows.unwrap_or(24),
-        cols: cols.unwrap_or(80),
-        pixel_width: 0,
-        pixel_height: 0,
-    };
-    let pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
+    let store = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let id = Uuid::new_v4().to_string();
+        let pty_system = NativePtySystem::default();
+        let size = PtySize {
+            rows: rows.unwrap_or(24),
+            cols: cols.unwrap_or(80),
+            pixel_width: 0,
+            pixel_height: 0,
+        };
+        let pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
 
-    let shell = if cfg!(windows) {
-        let pwsh = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
-        if Path::new(pwsh).exists() {
-            pwsh.to_string()
+        let shell = if cfg!(windows) {
+            let pwsh = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+            if Path::new(pwsh).exists() {
+                pwsh.to_string()
+            } else {
+                "powershell.exe".to_string()
+            }
         } else {
-            "powershell.exe".to_string()
-        }
-    } else {
-        std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
-    };
+            std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+        };
 
-    let mut cmd = CommandBuilder::new(&shell);
-    if let Some(ref dir) = cwd {
-        let clean = dir.trim_start_matches("file:///").trim_start_matches("file://");
-        let p = Path::new(clean);
-        if p.exists() {
-            cmd.cwd(clean);
-        }
-    }
-
-    // Configure complete interactive terminal environment
-    cmd.env("TERM", "xterm-256color");
-    cmd.env("COLORTERM", "truecolor");
-    cmd.env("TERM_PROGRAM", "FalkonIDE");
-    if let Ok(lang) = std::env::var("LANG") {
-        cmd.env("LANG", lang);
-    } else {
-        cmd.env("LANG", "en_US.UTF-8");
-    }
-
-    let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    let master = pair.master;
-    let writer = master.take_writer().map_err(|e| e.to_string())?;
-    let mut reader = master.try_clone_reader().map_err(|e| e.to_string())?;
-
-    let id_clone = id.clone();
-    let window_clone = window.clone();
-    std::thread::spawn(move || {
-        let mut buf = [0u8; 8192];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) | Err(_) => {
-                    let _ = window_clone.emit(&format!("terminal-exit-{}", id_clone), ());
-                    break;
-                }
-                Ok(n) => {
-                    let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = window_clone.emit(&format!("terminal-data-{}", id_clone), data);
-                }
+        let mut cmd = CommandBuilder::new(&shell);
+        if let Some(ref dir) = cwd {
+            let clean = dir.trim_start_matches("file:///").trim_start_matches("file://");
+            let p = Path::new(clean);
+            if p.exists() {
+                cmd.cwd(clean);
             }
         }
-    });
 
-    state.lock().unwrap().insert(id.clone(), PtySession { master, writer, child });
-    Ok(id)
+        // Configure complete interactive terminal environment
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
+        cmd.env("TERM_PROGRAM", "FalkonIDE");
+        if let Ok(lang) = std::env::var("LANG") {
+            cmd.env("LANG", lang);
+        } else {
+            cmd.env("LANG", "en_US.UTF-8");
+        }
+
+        let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+        let master = pair.master;
+        let writer = master.take_writer().map_err(|e| e.to_string())?;
+        let mut reader = master.try_clone_reader().map_err(|e| e.to_string())?;
+
+        let id_clone = id.clone();
+        let window_clone = window.clone();
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 8192];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) | Err(_) => {
+                        let _ = window_clone.emit(&format!("terminal-exit-{}", id_clone), ());
+                        break;
+                    }
+                    Ok(n) => {
+                        let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                        let _ = window_clone.emit(&format!("terminal-data-{}", id_clone), data);
+                    }
+                }
+            }
+        });
+
+        store.lock().unwrap().insert(id.clone(), PtySession { master, writer, child });
+        Ok(id)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn terminal_write(state: tauri::State<PtyStore>, id: String, data: String) -> Result<(), String> {
-    let mut store = state.lock().unwrap();
-    if let Some(session) = store.get_mut(&id) {
-        use std::io::Write;
-        session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
-        session.writer.flush().map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err(format!("PTY session '{}' not found", id))
-    }
+async fn terminal_write(state: tauri::State<'_, PtyStore>, id: String, data: String) -> Result<(), String> {
+    let store = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let mut guard = store.lock().unwrap();
+        if let Some(session) = guard.get_mut(&id) {
+            use std::io::Write;
+            session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+            session.writer.flush().map_err(|e| e.to_string())?;
+            Ok(())
+        } else {
+            Err(format!("PTY session '{}' not found", id))
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn terminal_resize(
-    state: tauri::State<PtyStore>,
+async fn terminal_resize(
+    state: tauri::State<'_, PtyStore>,
     id: String,
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
-    let store = state.lock().unwrap();
-    if let Some(session) = store.get(&id) {
-        let _ = session.master.resize(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        });
-    }
-    Ok(())
+    let store = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let guard = store.lock().unwrap();
+        if let Some(session) = guard.get(&id) {
+            let _ = session.master.resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            });
+        }
+        Ok(())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn terminal_kill(state: tauri::State<PtyStore>, id: String) -> Result<(), String> {
-    let mut store = state.lock().unwrap();
-    if let Some(mut session) = store.remove(&id) {
-        session.child.kill().map_err(|e| e.to_string())
-    } else {
-        Ok(())
-    }
+async fn terminal_kill(state: tauri::State<'_, PtyStore>, id: String) -> Result<(), String> {
+    let store = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let mut guard = store.lock().unwrap();
+        if let Some(mut session) = guard.remove(&id) {
+            session.child.kill().map_err(|e| e.to_string())
+        } else {
+            Ok(())
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 // ─────────────────────────────────────────────
@@ -755,7 +767,7 @@ fn main() {
         }
     }
 
-    let pty_store: PtyStore = Mutex::new(HashMap::new());
+    let pty_store: PtyStore = Arc::new(Mutex::new(HashMap::new()));
 
     // Store the last pending deep link URI received before the webview was ready.
     // Thread-safe: protected by a Mutex so the on_page_load handler can drain it.

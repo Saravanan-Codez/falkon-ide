@@ -73,7 +73,9 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 			this._logService.info(`[TauriTerminal] Created PTY session: ${this._tauriSessionId}`);
 
 			tauriTerminal.onData(this._tauriSessionId, (data: string) => {
-				this._onProcessData.fire({ data, trackCommit: false });
+				if (typeof data === 'string' && data.length > 0) {
+					this._onProcessData.fire({ data, trackCommit: false });
+				}
 			});
 
 			tauriTerminal.onExit(this._tauriSessionId, () => {

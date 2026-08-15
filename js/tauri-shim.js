@@ -52,11 +52,12 @@ const listen = (event, handler) => {
   if (win.__TAURI__?.event?.listen) {
     return win.__TAURI__.event.listen(event, handler);
   }
-  if (win.__TAURI_INTERNALS__?.invoke) {
+  if (win.__TAURI_INTERNALS__?.transformCallback && win.__TAURI_INTERNALS__?.invoke) {
+    const cbId = win.__TAURI_INTERNALS__.transformCallback((e) => handler(e));
     return win.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
       event,
       target: { kind: 'Any' },
-      handler: (e) => handler(e)
+      handler: cbId
     });
   }
   return Promise.resolve(() => {});
@@ -76,7 +77,7 @@ window.__tauri_terminal__ = {
   },
   write: (id, data) => {
     if (!id || data === undefined || data === null) return;
-    invoke('terminal_write', { id, data });
+    invoke('terminal_write', { id, data: String(data) });
   },
   resize: (id, rows, cols) => invoke('terminal_resize', {
     id,
@@ -86,9 +87,18 @@ window.__tauri_terminal__ = {
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
     const unlistenPromise = listen(`terminal-data-${id}`, (e) => {
-      const data = typeof e === 'string' ? e : (e?.payload !== undefined ? e.payload : e);
-      if (data !== undefined && data !== null) {
-        cb(data);
+      let str = '';
+      if (typeof e === 'string') {
+        str = e;
+      } else if (e && typeof e.payload === 'string') {
+        str = e.payload;
+      } else if (e && e.payload !== undefined && e.payload !== null) {
+        str = String(e.payload);
+      } else if (e !== undefined && e !== null) {
+        str = String(e);
+      }
+      if (str && typeof cb === 'function') {
+        cb(str);
       }
     });
     return () => {
@@ -97,7 +107,7 @@ window.__tauri_terminal__ = {
   },
   onExit: (id, cb) => {
     const unlistenPromise = listen(`terminal-exit-${id}`, () => {
-      cb();
+      if (typeof cb === 'function') cb();
     });
     return () => {
       unlistenPromise.then(u => typeof u === 'function' && u());
