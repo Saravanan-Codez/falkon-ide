@@ -63,7 +63,8 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private vetoBeforeUnload(event: BeforeUnloadEvent): void {
-		// In desktop application mode, do not trigger browser 'Leave site?' prompts
+		event.preventDefault();
+		event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
 	}
 
 	withExpectedShutdown(reason: ShutdownReason): Promise<void>;

@@ -22,12 +22,6 @@ import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } fr
 import { AuthenticationSessionInfo } from '../../../workbench/services/authentication/browser/authenticationService.js';
 import type { IURLCallbackProvider } from '../../../workbench/services/url/browser/urlService.js';
 import { create } from '../../../workbench/workbench.web.main.internal.js';
-import { Registry } from '../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../workbench/common/contributions.js';
-import { LifecyclePhase } from '../../../workbench/services/lifecycle/common/lifecycle.js';
-import { TauriTerminalContribution } from '../../../workbench/contrib/terminal/browser/tauriTerminalBackend.js';
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Restored);
 
 interface ISecretStorageCrypto {
 	seal(data: string): Promise<string>;
@@ -414,53 +408,6 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 	}
 }
 
-/**
- * Falkon Dev Kit – Deep Link URI Bridge
- *
- * Registers `window.__falkon_handle_uri(uri: string)` which the Rust/Tauri layer
- * calls when the OS delivers a `code-oss://` deep link back to the app after an
- * OAuth flow (Microsoft, GitHub, Copilot).
- *
- * The function parses the URI and writes it into localStorage using the same key
- * format that LocalStorageURLCallbackProvider.checkCallbacks() polls, so the
- * existing VS Code callback machinery picks it up transparently.
- *
- * Works on Linux (Wayland + X11), macOS, Windows, and all CPU architectures.
- */
-function registerFalkonDeepLinkBridge(): void {
-	(mainWindow as any).__falkon_handle_uri = (rawUri: string): void => {
-		try {
-			const uri = URI.parse(rawUri);
-			// Extract vscode-reqid from the query string so we can write to the
-			// correct localStorage slot that LocalStorageURLCallbackProvider polls.
-			const params = new URLSearchParams(uri.query);
-			const reqId = params.get('vscode-reqid');
-			if (reqId) {
-				const key = `vscode-web.url-callbacks[${reqId}]`;
-				// Reconstruct a URI component object the provider can revive
-				const uriComponents = {
-					scheme: uri.scheme,
-					authority: uri.authority,
-					path: uri.path,
-					query: uri.query,
-					fragment: uri.fragment,
-				};
-				localStorage.setItem(key, JSON.stringify(uriComponents));
-				// Dispatch a storage event so LocalStorageURLCallbackProvider
-				// picks it up even if the event fires in the same tab.
-				mainWindow.dispatchEvent(new StorageEvent('storage', {
-					key,
-					newValue: JSON.stringify(uriComponents),
-					storageArea: localStorage,
-				}));
-			}
-		} catch (e) {
-			console.error('[Falkon] Failed to handle deep link URI:', e, rawUri);
-		}
-	};
-}
-
-
 class WorkspaceProvider implements IWorkspaceProvider {
 
 	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
@@ -485,10 +432,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 						// that is a path (begins with a `/`), assume this
 						// is a vscode-remote resource as simplified URL.
 						workspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
-					} else if (value.startsWith('file:')) {
-						workspace = { folderUri: URI.parse(value) };
 					} else {
-						workspace = { folderUri: URI.file(value) };
+						workspace = { folderUri: URI.parse(value) };
 					}
 					foundWorkspace = true;
 					break;
@@ -500,10 +445,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 						// that is a path (begins with a `/`), assume this
 						// is a vscode-remote resource as simplified URL.
 						workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
-					} else if (value.startsWith('file:')) {
-						workspace = { workspaceUri: URI.parse(value) };
 					} else {
-						workspace = { workspaceUri: URI.file(value) };
+						workspace = { workspaceUri: URI.parse(value) };
 					}
 					foundWorkspace = true;
 					break;
@@ -613,7 +556,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			return encodeURIComponent(`${posix.sep}${ltrim(uri.path, posix.sep)}`).replaceAll('%2F', '/');
 		}
 
-		return encodeURIComponent(uri.scheme === 'file' ? (uri.fsPath || uri.path) : uri.toString(true));
+		return encodeURIComponent(uri.toString(true));
 	}
 
 	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
@@ -664,39 +607,18 @@ function readCookie(name: string): string | undefined {
 	// eslint-disable-next-line no-restricted-syntax
 	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
-	let config: any = { callbackRoute: '/callback' };
-	if (configElementAttribute && !configElementAttribute.startsWith('{{')) {
-		try {
-			config = { ...config, ...JSON.parse(configElementAttribute) };
-		} catch (e) {
-			console.warn('[Falkon] Web configuration parse fallback:', e);
-		}
+	if (!configElement || !configElementAttribute) {
+		throw new Error('Missing web configuration element');
 	}
+	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = JSON.parse(configElementAttribute);
 	const secretStorageKeyPath = readCookie('vscode-secret-key-path');
 	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
-	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
+	create(mainWindow.document.body, {
 		...config,
-		configurationDefaults: {
-			'workbench.colorTheme': 'Default Dark Modern',
-			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
-			'workbench.iconTheme': 'vs-seti',
-			'window.titleBarStyle': 'custom',
-			'window.customTitleBarVisibility': 'always',
-			'window.menuBarVisibility': 'classic',
-			'window.commandCenter': true,
-			'workbench.navigationControl.enabled': true,
-			'security.workspace.trust.enabled': false,
-			'chat.titleBar.openInAgentsWindow.enabled': true,
-			'chat.commandCenter.enabled': true,
-			'git.enabled': true,
-			'git.path': 'git',
-			'git.autoRepositoryDetection': true,
-			...config.configurationDefaults
-		},
-		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Desktop` },
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),
@@ -704,9 +626,4 @@ function readCookie(name: string): string | undefined {
 			? undefined /* with a remote without embedder-preferred storage, store on the remote */
 			: new LocalStorageSecretStorageProvider(secretStorageCrypto),
 	});
-
-	// Register the Falkon deep-link bridge AFTER the workbench is created so that
-	// any pending code-oss:// URI delivered by Tauri before DOMContentLoaded is
-	// handled correctly.
-	registerFalkonDeepLinkBridge();
 })();

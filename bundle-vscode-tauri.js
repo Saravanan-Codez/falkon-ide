@@ -33,6 +33,16 @@ async function bundleTauriVSCode() {
   console.log('📦 Bundling VS Code Web Workbench for Tauri...');
   const startTime = Date.now();
 
+  // Step 0: Apply Falkon patches to upstream VS Code source files.
+  // This runs BEFORE compilation so changes always survive upstream git pulls.
+  try {
+    const { applyPatches } = await import('./patch-upstream.js');
+    applyPatches();
+  } catch (e) {
+    console.error('❌ patch-upstream.js failed:', e);
+    process.exit(1);
+  }
+
   // Apply FalkonIDE.svg logo across all project locations
   try {
     await import('./apply-falkon-logo.mjs');
