@@ -682,6 +682,7 @@ function readCookie(name: string): string | undefined {
 		configurationDefaults: {
 			'workbench.colorTheme': 'Default Dark Modern',
 			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+			'workbench.iconTheme': 'vs-seti',
 			'window.titleBarStyle': 'custom',
 			'window.customTitleBarVisibility': 'always',
 			'window.menuBarVisibility': 'classic',
@@ -695,7 +696,7 @@ function readCookie(name: string): string | undefined {
 			'git.autoRepositoryDetection': true,
 			...config.configurationDefaults
 		},
-		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Desktop` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),

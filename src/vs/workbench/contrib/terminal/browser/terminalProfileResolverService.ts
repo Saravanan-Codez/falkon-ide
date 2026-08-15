@@ -232,7 +232,11 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		return this._terminalProfileService.getDefaultProfile(os);
+		return this._terminalProfileService.getDefaultProfile(os) || {
+			profileName: os === OperatingSystem.Windows ? 'PowerShell' : 'bash',
+			path: os === OperatingSystem.Windows ? 'powershell.exe' : '/bin/bash',
+			isDefault: true
+		};
 	}
 
 	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {

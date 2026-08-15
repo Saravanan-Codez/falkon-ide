@@ -47,12 +47,33 @@ window.__tauri_dialogs__ = {
 //  Terminal (PTY)
 // ─────────────────────────────────────────────
 
+const listen = (event, handler) => {
+  const win = window;
+  if (win.__TAURI__?.event?.listen) {
+    return win.__TAURI__.event.listen(event, handler);
+  }
+  if (win.__TAURI_INTERNALS__?.invoke) {
+    return win.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event,
+      target: { kind: 'Any' },
+      handler: (e) => handler(e)
+    });
+  }
+  return Promise.resolve(() => {});
+};
+
 window.__tauri_terminal__ = {
-  create: (cwd, rows, cols) => invoke('terminal_create', {
-    cwd: (typeof cwd === 'string' && cwd.length > 0) ? cwd : null,
-    rows: (typeof rows === 'number') ? rows : 24,
-    cols: (typeof cols === 'number') ? cols : 80
-  }),
+  create: (cwd, rows, cols) => {
+    let cleanCwd = typeof cwd === 'string' ? cwd : null;
+    if (cleanCwd && cleanCwd.startsWith('file://')) {
+      cleanCwd = cleanCwd.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
+    }
+    return invoke('terminal_create', {
+      cwd: cleanCwd,
+      rows: (typeof rows === 'number' && rows > 0) ? rows : 24,
+      cols: (typeof cols === 'number' && cols > 0) ? cols : 80
+    });
+  },
   write: (id, data) => {
     if (!id || data === undefined || data === null) return;
     invoke('terminal_write', { id, data });
@@ -64,28 +85,23 @@ window.__tauri_terminal__ = {
   }),
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
-    const tauri = window.__TAURI__ || (globalThis).__TAURI__;
-    if (tauri?.event?.listen) {
-      const p = tauri.event.listen(`terminal-data-${id}`, (e) => {
-        if (e && e.payload !== undefined) {
-          cb(e.payload);
-        }
-      });
-      return () => {
-        p.then(u => typeof u === 'function' && u());
-      };
-    }
-    return () => {};
+    const unlistenPromise = listen(`terminal-data-${id}`, (e) => {
+      const data = typeof e === 'string' ? e : (e?.payload !== undefined ? e.payload : e);
+      if (data !== undefined && data !== null) {
+        cb(data);
+      }
+    });
+    return () => {
+      unlistenPromise.then(u => typeof u === 'function' && u());
+    };
   },
   onExit: (id, cb) => {
-    const tauri = window.__TAURI__ || (globalThis).__TAURI__;
-    if (tauri?.event?.listen) {
-      const p = tauri.event.listen(`terminal-exit-${id}`, cb);
-      return () => {
-        p.then(u => typeof u === 'function' && u());
-      };
-    }
-    return () => {};
+    const unlistenPromise = listen(`terminal-exit-${id}`, () => {
+      cb();
+    });
+    return () => {
+      unlistenPromise.then(u => typeof u === 'function' && u());
+    };
   },
 };
 
@@ -197,4 +213,38 @@ window.addEventListener('drop', (e) => {
     e.preventDefault();
   }
 }, false);
+
+// ─────────────────────────────────────────────
+//  Marketplace CORS Bypass Fetch Interceptor
+// ─────────────────────────────────────────────
+
+const originalFetch = window.fetch;
+window.fetch = async function(resource, init) {
+  const url = typeof resource === 'string' ? resource : (resource?.url || '');
+  if (url && (url.includes('marketplace.visualstudio.com') || url.includes('open-vsx.org'))) {
+    try {
+      const method = init?.method || 'GET';
+      const body = init?.body ? String(init.body) : null;
+      let headers = {};
+      if (init?.headers) {
+        if (init.headers instanceof Headers) {
+          init.headers.forEach((v, k) => { headers[k] = v; });
+        } else if (typeof init.headers === 'object') {
+          headers = { ...init.headers };
+        }
+      }
+      const responseText = await invoke('marketplace_proxy', { url, method, headers, body });
+      if (typeof responseText === 'string') {
+        return new Response(responseText, {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    } catch (err) {
+      console.warn('[Falkon Marketplace Proxy] Native fetch fallback:', err);
+    }
+  }
+  return originalFetch.apply(this, arguments);
+};
 

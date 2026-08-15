@@ -154,7 +154,12 @@ export class TauriTerminalBackend extends Disposable implements ITerminalBackend
 		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
-		const targetCwd = cwd || (shellLaunchConfig.cwd ? String(shellLaunchConfig.cwd) : '/');
+		let targetCwd = '';
+		if (typeof cwd === 'string' && cwd.length > 0) {
+			targetCwd = cwd;
+		} else if (shellLaunchConfig.cwd) {
+			targetCwd = typeof shellLaunchConfig.cwd === 'string' ? shellLaunchConfig.cwd : (shellLaunchConfig.cwd.fsPath || shellLaunchConfig.cwd.path || '');
+		}
 		return new TauriTerminalChildProcess(targetCwd, cols, rows, this._logService);
 	}
 

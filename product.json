@@ -35,9 +35,9 @@
 	"electronArtifactFeed": "",
 	"urlProtocol": "code-oss",
 	"extensionsGallery": {
-		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
 		"itemUrl": "https://marketplace.visualstudio.com/items",
-		"resourceUrlTemplate": "https://open-vsx.org/api/{publisher}/{name}/{version}/file/{path}",
+		"resourceUrlTemplate": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{name}/{version}/vspackage",
 		"controlUrl": "https://az764295.vo.msecnd.net/extensions/marketplace.json"
 	},
 	"agentsTelemetryAppName": "agents",

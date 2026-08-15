@@ -40,49 +40,43 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		@IProductService productService: IProductService,
 		@ILogService private readonly logService: ILogService
 	) {
-		if (isWeb) {
-			const nlsBaseUrl = productService.extensionsGallery?.nlsBaseUrl;
-			// Only use the nlsBaseUrl if we are using a language other than the default, English.
-			if (nlsBaseUrl && productService.commit && !Language.isDefaultVariant()) {
-				this.nlsUrl = URI.joinPath(URI.parse(nlsBaseUrl), productService.commit, productService.version, Language.value());
+		const builtinExtensionsElement = mainWindow.document ? mainWindow.document.getElementById('vscode-workbench-builtin-extensions') : null;
+		const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
+
+		const nlsBaseUrl = productService.extensionsGallery?.nlsBaseUrl;
+		if (nlsBaseUrl && productService.commit && !Language.isDefaultVariant()) {
+			this.nlsUrl = URI.joinPath(URI.parse(nlsBaseUrl), productService.commit, productService.version, Language.value());
+		}
+
+		const builtinExtensionsServiceUrl = FileAccess.asBrowserUri(builtinExtensionsPath);
+		if (builtinExtensionsServiceUrl || builtinExtensionsElementAttribute) {
+			let bundledExtensions: IBundledExtension[] = [];
+
+			if (environmentService.isBuilt) {
+				bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
+			} else if (builtinExtensionsElementAttribute) {
+				try {
+					bundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
+				} catch (error) { /* ignore error*/ }
 			}
 
-			const builtinExtensionsServiceUrl = FileAccess.asBrowserUri(builtinExtensionsPath);
-			if (builtinExtensionsServiceUrl) {
-				let bundledExtensions: IBundledExtension[] = [];
-
-				if (environmentService.isBuilt) {
-					// Built time configuration (do NOT modify)
-					bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
-				} else {
-					// Find builtin extensions by checking for DOM
-					// eslint-disable-next-line no-restricted-syntax
-					const builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
-					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
-					if (builtinExtensionsElementAttribute) {
-						try {
-							bundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
-						} catch (error) { /* ignore error*/ }
-					}
-				}
-
-				this.builtinExtensionsPromises = bundledExtensions.map(async e => {
-					const id = getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name);
-					return {
-						identifier: { id },
-						location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.extensionPath),
-						type: ExtensionType.System,
-						isBuiltin: true,
-						manifest: e.packageNLS ? await this.localizeManifest(id, e.packageJSON, e.packageNLS) : e.packageJSON,
-						readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.readmePath) : undefined,
-						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.changelogPath) : undefined,
-						targetPlatform: TargetPlatform.WEB,
-						validations: [],
-						isValid: true,
-						preRelease: false,
-					};
-				});
-			}
+			const baseUrl = builtinExtensionsServiceUrl || URI.parse(FileAccess.asBrowserUri('').toString());
+			this.builtinExtensionsPromises = bundledExtensions.map(async e => {
+				const id = getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name);
+				return {
+					identifier: { id },
+					location: uriIdentityService.extUri.joinPath(baseUrl, e.extensionPath),
+					type: ExtensionType.System,
+					isBuiltin: true,
+					manifest: e.packageNLS ? await this.localizeManifest(id, e.packageJSON, e.packageNLS) : e.packageJSON,
+					readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(baseUrl, e.readmePath) : undefined,
+					changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(baseUrl, e.changelogPath) : undefined,
+					targetPlatform: TargetPlatform.UNDEFINED,
+					validations: [],
+					isValid: true,
+					preRelease: false,
+				};
+			});
 		}
 	}
 

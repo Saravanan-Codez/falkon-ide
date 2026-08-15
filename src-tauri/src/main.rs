@@ -186,14 +186,23 @@ fn terminal_create(
     let pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
 
     let shell = if cfg!(windows) {
-        std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+        let pwsh = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+        if Path::new(pwsh).exists() {
+            pwsh.to_string()
+        } else {
+            "powershell.exe".to_string()
+        }
     } else {
         std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
     };
 
     let mut cmd = CommandBuilder::new(&shell);
-    if let Some(cwd) = cwd {
-        cmd.cwd(cwd);
+    if let Some(ref dir) = cwd {
+        let clean = dir.trim_start_matches("file:///").trim_start_matches("file://");
+        let p = Path::new(clean);
+        if p.exists() {
+            cmd.cwd(clean);
+        }
     }
 
     // Configure complete interactive terminal environment
@@ -716,6 +725,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_server_authority,
+            marketplace_proxy,
             // File system
             read_file, write_file, read_dir, stat_file, file_exists,
             create_dir, rename_file, create_temp_file, delete_file,
@@ -739,4 +749,47 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+async fn marketplace_proxy(
+    url: String,
+    method: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let is_post = method.as_deref().unwrap_or("GET").eq_ignore_ascii_case("POST");
+        let mut req = if is_post {
+            client.post(&url)
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json;api-version=6.0-preview.1;excludeMetaData=true")
+        } else {
+            client.get(&url)
+        };
+
+        req = req.header("User-Agent", "VSCode/1.133.0");
+
+        if let Some(hdrs) = headers {
+            for (k, v) in hdrs {
+                if k.eq_ignore_ascii_case("host") || k.eq_ignore_ascii_case("content-length") { continue; }
+                req = req.header(&k, &v);
+            }
+        }
+
+        if is_post {
+            if let Some(b) = body {
+                req = req.body(b);
+            }
+        }
+
+        let res = req.send().map_err(|e| e.to_string())?;
+        let text = res.text().map_err(|e| e.to_string())?;
+        Ok(text)
+    }).await.map_err(|e| e.to_string())?
 }
