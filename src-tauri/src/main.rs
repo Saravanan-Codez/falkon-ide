@@ -8,7 +8,7 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ struct PtySession {
     child: Box<dyn portable_pty::Child + Send>,
 }
 
-type PtyStore = Mutex<HashMap<String, PtySession>>;
+type PtyStore = Arc<Mutex<HashMap<String, PtySession>>>;
 
 // ─────────────────────────────────────────────
 //  File System Commands
@@ -175,6 +175,7 @@ async fn terminal_create(
     rows: Option<u16>,
     cwd: Option<String>,
 ) -> Result<String, String> {
+    let store = state.inner().clone();
     tokio::task::spawn_blocking(move || {
         let id = Uuid::new_v4().to_string();
         let pty_system = NativePtySystem::default();
@@ -239,16 +240,17 @@ async fn terminal_create(
             }
         });
 
-        state.lock().unwrap().insert(id.clone(), PtySession { master, writer, child });
+        store.lock().unwrap().insert(id.clone(), PtySession { master, writer, child });
         Ok(id)
     }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 async fn terminal_write(state: tauri::State<'_, PtyStore>, id: String, data: String) -> Result<(), String> {
+    let store = state.inner().clone();
     tokio::task::spawn_blocking(move || {
-        let mut store = state.lock().unwrap();
-        if let Some(session) = store.get_mut(&id) {
+        let mut guard = store.lock().unwrap();
+        if let Some(session) = guard.get_mut(&id) {
             use std::io::Write;
             session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
             session.writer.flush().map_err(|e| e.to_string())?;
@@ -266,9 +268,10 @@ async fn terminal_resize(
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
+    let store = state.inner().clone();
     tokio::task::spawn_blocking(move || {
-        let store = state.lock().unwrap();
-        if let Some(session) = store.get(&id) {
+        let guard = store.lock().unwrap();
+        if let Some(session) = guard.get(&id) {
             let _ = session.master.resize(PtySize {
                 rows,
                 cols,
@@ -282,9 +285,10 @@ async fn terminal_resize(
 
 #[tauri::command]
 async fn terminal_kill(state: tauri::State<'_, PtyStore>, id: String) -> Result<(), String> {
+    let store = state.inner().clone();
     tokio::task::spawn_blocking(move || {
-        let mut store = state.lock().unwrap();
-        if let Some(mut session) = store.remove(&id) {
+        let mut guard = store.lock().unwrap();
+        if let Some(mut session) = guard.remove(&id) {
             session.child.kill().map_err(|e| e.to_string())
         } else {
             Ok(())
@@ -763,7 +767,7 @@ fn main() {
         }
     }
 
-    let pty_store: PtyStore = Mutex::new(HashMap::new());
+    let pty_store: PtyStore = Arc::new(Mutex::new(HashMap::new()));
 
     // Store the last pending deep link URI received before the webview was ready.
     // Thread-safe: protected by a Mutex so the on_page_load handler can drain it.
