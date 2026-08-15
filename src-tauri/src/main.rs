@@ -649,6 +649,80 @@ fn start_oauth_callback_server(app_handle: tauri::AppHandle) {
 }
 
 // ─────────────────────────────────────────────
+//  Marketplace CORS Proxy
+// ─────────────────────────────────────────────
+
+#[tauri::command]
+async fn marketplace_proxy(
+    url: String,
+    method: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let is_post = method.as_deref().unwrap_or("GET").eq_ignore_ascii_case("POST");
+        
+        let mut target_url = url.clone();
+        if is_post && !target_url.contains("api-version=") {
+            if target_url.contains('?') {
+                target_url.push_str("&api-version=6.0-preview.1");
+            } else {
+                target_url.push_str("?api-version=6.0-preview.1");
+            }
+        }
+
+        let mut req = if is_post {
+            client.post(&target_url)
+        } else {
+            client.get(&target_url)
+        };
+
+        // Enforce required Visual Studio Marketplace headers
+        req = req.header("User-Agent", "VSCode/1.133.0");
+        req = req.header("Accept", "application/json;api-version=6.0-preview.1;excludeMetaData=true");
+        if is_post {
+            req = req.header("Content-Type", "application/json");
+        }
+
+        if let Some(hdrs) = headers {
+            for (k, v) in hdrs {
+                if k.eq_ignore_ascii_case("host")
+                    || k.eq_ignore_ascii_case("content-length")
+                    || k.eq_ignore_ascii_case("accept-encoding")
+                    || k.eq_ignore_ascii_case("transfer-encoding")
+                    || k.eq_ignore_ascii_case("user-agent")
+                    || k.eq_ignore_ascii_case("accept")
+                {
+                    continue;
+                }
+                req = req.header(&k, &v);
+            }
+        }
+
+        if is_post {
+            if let Some(b) = body {
+                req = req.body(b);
+            }
+        }
+
+        let res = req.send().map_err(|e| e.to_string())?;
+        let status = res.status();
+        let text = res.text().map_err(|e| e.to_string())?;
+
+        if !status.is_success() {
+            return Err(format!("HTTP {}: {}", status, text));
+        }
+
+        Ok(text)
+    }).await.map_err(|e| e.to_string())?
+}
+
+// ─────────────────────────────────────────────
 //  Main
 // ─────────────────────────────────────────────
 
@@ -744,59 +818,11 @@ fn main() {
             // Git
             git_branch, git_status, git_is_repo, git_log, git_diff,
             git_stage, git_unstage, git_commit, git_push, git_pull, git_checkout,
+            // Marketplace CORS proxy
+            marketplace_proxy,
             // Runners
             run_falkon, run_cimple
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-#[tauri::command]
-async fn marketplace_proxy(
-    url: String,
-    method: Option<String>,
-    headers: Option<HashMap<String, String>>,
-    body: Option<String>,
-) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(15))
-            .build()
-            .map_err(|e| e.to_string())?;
-
-        let is_post = method.as_deref().unwrap_or("GET").eq_ignore_ascii_case("POST");
-        let mut req = if is_post {
-            client.post(&url)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json;api-version=6.0-preview.1;excludeMetaData=true")
-        } else {
-            client.get(&url)
-        };
-
-        req = req.header("User-Agent", "VSCode/1.133.0");
-
-        if let Some(hdrs) = headers {
-            for (k, v) in hdrs {
-                // Skip hop-by-hop headers that interfere with reqwest's transparent decompression
-                if k.eq_ignore_ascii_case("host")
-                    || k.eq_ignore_ascii_case("content-length")
-                    || k.eq_ignore_ascii_case("accept-encoding")
-                    || k.eq_ignore_ascii_case("transfer-encoding")
-                {
-                    continue;
-                }
-                req = req.header(&k, &v);
-            }
-        }
-
-        if is_post {
-            if let Some(b) = body {
-                req = req.body(b);
-            }
-        }
-
-        let res = req.send().map_err(|e| e.to_string())?;
-        let text = res.text().map_err(|e| e.to_string())?;
-        Ok(text)
-    }).await.map_err(|e| e.to_string())?
 }
