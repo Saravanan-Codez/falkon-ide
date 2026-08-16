@@ -109,7 +109,7 @@
     "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.117.1",
     "@github/copilot": "1.0.79-6",
     "@github/copilot-sdk": "1.0.9",
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -295,14 +295,20 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
-    "serialize-javascript": "^7.0.3",
+    "serialize-javascript": "^7.0.5",
     "byline": "^5.0.0",
     "jws": "^4.0.1",
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
     "workerpool": "^6.4.0",
     "yauzl": "^3.3.1",
-    "zx": "^8.8.5"
+    "zx": "^8.8.5",
+    "postcss": "^8.4.31",
+    "micromatch": "^4.0.8",
+    "uuid": "^11.1.1",
+    "@anthropic-ai/sdk": "^0.117.1",
+    "adm-zip": "^0.6.0",
+    "braces": "^3.0.3"
   },
   "repository": {
     "type": "git",
@@ -345,10 +351,5 @@
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true,
     "esbuild@0.28.2": true
-  },
-  "overrides": {
-    "postcss": "^8.4.31",
-    "micromatch": "^4.0.8",
-    "uuid": "^11.1.1"
   }
 }
