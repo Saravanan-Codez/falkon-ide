@@ -96,7 +96,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
     file: 'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',
     desc: 'Swap per-call promise array for a single cached Promise<IExtension[]>',
     find: `\tprivate readonly builtinExtensionsPromises: Promise<IExtension>[] = [];`,
-    replace: `\t// Cached once at construction — scanBuiltinExtensions() returns instantly on repeated calls\n\tprivate readonly _cachedExtensions: Promise<IExtension[]>;`,
+    replace: `\t// Cached once at construction — scanBuiltinExtensions() returns instantly on repeated calls\n\tprivate readonly _cachedExtensions!: Promise<IExtension[]>;`,
   },
   {
     file: 'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',
