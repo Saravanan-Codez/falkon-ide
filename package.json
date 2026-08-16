@@ -250,10 +250,12 @@
     "gulp-gunzip": "^1.0.0",
     "gulp-gzip": "^1.4.2",
     "gulp-json-editor": "^2.5.0",
+    "gulp-merge-json": "^2.1.1",
     "gulp-plumber": "^1.2.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
+    "gulp-sort": "^2.0.0",
     "gulp-svgmin": "^4.1.0",
     "husky": "^0.13.1",
     "innosetup": "^6.4.1",
@@ -295,7 +297,13 @@
       "node-addon-api": "7.1.0"
     },
     "serialize-javascript": "^7.0.3",
-    "yauzl": "^3.3.1"
+    "byline": "^5.0.0",
+    "jws": "^4.0.1",
+    "ternary-stream": "^3.0.0",
+    "through2": "^4.0.2",
+    "workerpool": "^6.4.0",
+    "yauzl": "^3.3.1",
+    "zx": "^8.8.5"
   },
   "repository": {
     "type": "git",

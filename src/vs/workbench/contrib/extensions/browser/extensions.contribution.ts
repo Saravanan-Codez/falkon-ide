@@ -944,15 +944,15 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 				const input = await quickInputService.input({
 					title: localize('installOpenVSXTitle', 'Install Extension from Open VSX'),
-					placeholder: localize('installOpenVSXPlaceholder', 'e.g. golang.Go or publisher.extensionName'),
+					placeHolder: localize('installOpenVSXPlaceholder', 'e.g. golang.Go or publisher.extensionName'),
 					prompt: localize('installOpenVSXPrompt', 'Enter Open VSX Extension ID to download and install directly'),
-					ignoreFocusOut: true
+					ignoreFocusLost: true
 				});
 
 				if (input && input.trim()) {
 					const extId = input.trim();
 					try {
-						const extensions = await extensionsWorkbenchService.queryGallery({ names: [extId] }, CancellationToken.None);
+						const extensions = await extensionsWorkbenchService.queryGallery({ names: [extId] } as any, CancellationToken.None);
 						if (extensions.firstPage.length > 0) {
 							await extensionsWorkbenchService.install(extensions.firstPage[0]);
 							notificationService.info(localize('openVSXSuccess', "Successfully installed '{0}' from Open VSX.", extId));

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { createReadStream, promises } from 'fs';
 import type * as http from 'http';
 import * as url from 'url';

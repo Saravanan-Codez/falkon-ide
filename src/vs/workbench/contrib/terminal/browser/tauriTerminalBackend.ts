@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IProcessEnvironment, isWindows, OperatingSystem } from '../../../../base/common/platform.js';
-import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import {
@@ -17,7 +16,6 @@ import {
 	ITerminalBackend,
 	ITerminalBackendRegistry,
 	ITerminalChildProcess,
-	ITerminalDimensions,
 	ITerminalLaunchError,
 	ITerminalLaunchResult,
 	ITerminalLogService,
@@ -119,6 +117,12 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 	sendSignal(signal: string): void {}
 	processBinary(data: string): Promise<void> { return Promise.resolve(); }
 	clearBuffer(): void {}
+	acknowledgeDataEvent(charCount: number): void {}
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {}
+	async getInitialCwd(): Promise<string> { return this._cwd; }
+	async getCwd(): Promise<string> { return this._cwd; }
+	async refreshProperty(property: any): Promise<any> { return undefined; }
+	async updateProperty(property: any, value: any): Promise<void> {}
 }
 
 export class TauriTerminalBackend extends Disposable implements ITerminalBackend {
@@ -202,6 +206,8 @@ export class TauriTerminalBackend extends Disposable implements ITerminalBackend
 	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {}
 	async persistTerminalState(): Promise<void> {}
 	restartPtyHost(): void {}
+	async installAutoReply(match: string, reply: string): Promise<void> {}
+	async uninstallAllAutoReplies(): Promise<void> {}
 }
 
 export class TauriTerminalContribution implements IWorkbenchContribution {

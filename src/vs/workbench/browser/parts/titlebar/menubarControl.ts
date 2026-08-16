@@ -431,7 +431,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
 		const val = getMenuBarVisibility(this.configurationService);
-		return (val === 'default' || val === 'compact') ? 'classic' : val;
+		return ((val as any) === 'default' || val === 'compact') ? 'classic' : val;
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {

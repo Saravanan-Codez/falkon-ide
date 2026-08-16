@@ -30,6 +30,10 @@ import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileS
 import { revive } from '../../../../base/common/marshalling.js';
 
 export class TauriSearchProvider implements ISearchResultProvider {
+	async getAIName(): Promise<string | undefined> {
+		return 'Tauri Search Provider';
+	}
+
 	async textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		const results: IFileMatch[] = [];
 		const tauriSearch = (globalThis as any).__tauri_search__ || (window as any).__tauri_search__;

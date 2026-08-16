@@ -30,7 +30,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	declare readonly _serviceBrand: undefined;
 
 	// Cached once at construction — scanBuiltinExtensions() returns instantly on repeated calls
-	private readonly _cachedExtensions: Promise<IExtension[]>;
+	private readonly _cachedExtensions!: Promise<IExtension[]>;
 
 	private nlsUrl: URI | undefined;
 

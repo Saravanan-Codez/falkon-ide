@@ -23,7 +23,7 @@ import { ITerminalContributionService } from '../common/terminalExtensionPoints.
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { hasKey, isString } from '../../../../base/common/types.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 /*
  * Links TerminalService with TerminalProfileResolverService

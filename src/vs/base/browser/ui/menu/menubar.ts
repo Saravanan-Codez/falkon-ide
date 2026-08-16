@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from '../../browser.js';
 import * as DOM from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
@@ -22,7 +21,6 @@ import { isMacintosh } from '../../../common/platform.js';
 import * as strings from '../../../common/strings.js';
 import './menubar.css';
 import * as nls from '../../../../nls.js';
-import { mainWindow } from '../../window.js';
 
 const $ = DOM.$;
 

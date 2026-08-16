@@ -10,6 +10,10 @@ import { Schemas } from '../../../../base/common/network.js';
 
 export class TauriFileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
+	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+		return this.showSaveDialog({ defaultUri, availableFileSystems });
+	}
+
 	private get tauriDialogs(): any {
 		const win = window as any;
 		if (win.__tauri_dialogs__) {

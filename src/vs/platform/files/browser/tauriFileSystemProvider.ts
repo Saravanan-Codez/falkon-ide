@@ -61,7 +61,7 @@ export class TauriFileSystemProvider extends Disposable implements IFileSystemPr
 	}
 
 	constructor(
-		private readonly logService: ILogService
+		logService: ILogService
 	) {
 		super();
 	}

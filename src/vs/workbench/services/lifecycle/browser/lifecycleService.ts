@@ -6,7 +6,6 @@
 import { ShutdownReason, ILifecycleService, StartupKind } from '../common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractLifecycleService } from '../common/lifecycleService.js';
-import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
