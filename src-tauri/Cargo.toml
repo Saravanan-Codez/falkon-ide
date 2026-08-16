@@ -1,5 +1,5 @@
 [package]
-name = "falkon_dev_kit_tauri"
+name = "falkon_ide"
 version = "0.1.0"
 edition = "2021"
 
