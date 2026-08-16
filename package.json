@@ -346,5 +346,10 @@
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true,
     "esbuild@0.28.2": true
+  },
+  "overrides": {
+    "postcss": "^8.4.31",
+    "micromatch": "^4.0.8",
+    "uuid": "^11.1.1"
   }
 }
