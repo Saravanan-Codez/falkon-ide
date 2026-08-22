@@ -1,6 +1,10 @@
 import { spawn } from 'child_process';
 import { existsSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const args = process.argv.slice(2);
 const action = args[0] || 'dev';
@@ -82,6 +86,44 @@ const tauriArgs = ['tauri', action, ...extraArgs];
 // On Linux, default build targets to deb,rpm if not explicitly specified
 if (action === 'build' && isLinux && !extraArgs.some(a => a === '--bundles' || a === '-b')) {
   tauriArgs.push('--bundles', 'deb,rpm');
+}
+
+// ── Inject System Git Paths ──────────────────────────────────────────────────
+const gitPaths = [
+  'C:\\Program Files\\Git\\cmd',
+  'C:\\Program Files\\Git\\bin',
+  'C:\\Program Files (x86)\\Git\\cmd',
+];
+for (const gitPath of gitPaths) {
+  if (existsSync(gitPath) && !(env.PATH || '').includes(gitPath)) {
+    env.PATH = `${gitPath};${env.PATH || ''}`;
+    env.Path = env.PATH;
+  }
+}
+
+// ── Start Stock VS Code Node.js Server Sidecar ──────────────────────────────
+const serverEntryPoint = join(__dirname, 'out', 'server-main.js');
+if (existsSync(serverEntryPoint)) {
+  try {
+    const res = await fetch('http://127.0.0.1:9888/').catch(() => null);
+    if (res) {
+      console.log('⚡ Stock VS Code Node.js Server Sidecar is already running on port 9888.');
+    } else {
+      console.log('⚡ Launching stock VS Code Node.js Server Sidecar on port 9888...');
+      const serverProc = spawn(process.execPath, [serverEntryPoint, '--port', '9888', '--accept-server-license-terms', '--without-connection-token'], {
+        env,
+        stdio: 'ignore'
+      });
+      process.on('exit', () => serverProc.kill());
+    }
+  } catch (_e) {
+    console.log('⚡ Launching stock VS Code Node.js Server Sidecar on port 9888...');
+    const serverProc = spawn(process.execPath, [serverEntryPoint, '--port', '9888', '--accept-server-license-terms', '--without-connection-token'], {
+      env,
+      stdio: 'ignore'
+    });
+    process.on('exit', () => serverProc.kill());
+  }
 }
 
 console.log(`🚀 Starting Tauri: ${tauriArgs.join(' ')}...`);

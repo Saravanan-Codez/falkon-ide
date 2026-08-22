@@ -67,7 +67,7 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 		}
 
 		try {
-			this._tauriSessionId = await tauriTerminal.create(this._cwd, this._rows, this._cols);
+			this._tauriSessionId = await tauriTerminal.create(this._cwd, this._cols, this._rows);
 			this._logService.info(`[TauriTerminal] Created PTY session: ${this._tauriSessionId}`);
 
 			tauriTerminal.onData(this._tauriSessionId, (data: string) => {
@@ -104,7 +104,7 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 		this._rows = rows;
 		if (!this._tauriSessionId) return;
 		const tauriTerminal = (globalThis as any).__tauri_terminal__;
-		tauriTerminal?.resize(this._tauriSessionId, rows, cols);
+		tauriTerminal?.resize(this._tauriSessionId, cols, rows);
 	}
 
 	shutdown(immediate: boolean): void {
@@ -210,15 +210,19 @@ export class TauriTerminalBackend extends Disposable implements ITerminalBackend
 	async uninstallAllAutoReplies(): Promise<void> {}
 }
 
+import { ITerminalService } from './terminal.js';
+
 export class TauriTerminalContribution implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.tauriTerminal';
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
+		@ITerminalService terminalService: ITerminalService
 	) {
 		const backend = instantiationService.createInstance(TauriTerminalBackend);
 		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
 		terminalInstanceService.didRegisterBackend(backend);
+		terminalService.registerProcessSupport(true);
 	}
 }

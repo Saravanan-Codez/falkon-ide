@@ -304,6 +304,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	 * Returns the selected path, or null if cancelled or unavailable.
 	 */
 	protected async _callNativeFileDialog(type: 'open-file' | 'open-folder' | 'save-file', defaultPath?: string): Promise<string | null> {
+		// Tauri uses rfd via IFileDialogService, not the leftover Node HTTP API.
+		if (typeof window !== 'undefined' && (window as any).__tauri_dialogs__) {
+			return null;
+		}
 		try {
 			const params = defaultPath ? `?path=${encodeURIComponent(defaultPath)}` : '';
 			const resp = await fetch(`http://127.0.0.1:9888/api/dialog/${type}${params}`);

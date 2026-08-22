@@ -34,11 +34,53 @@ async fn read_file(file_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn read_file_bytes(file_path: String) -> Result<Vec<u8>, String> {
+    tokio::fs::read(&file_path).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn write_file(file_path: String, content: String) -> Result<bool, String> {
     if let Some(parent) = Path::new(&file_path).parent() {
         tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
     }
     tokio::fs::write(&file_path, content).await.map(|_| true).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn write_file_bytes(file_path: String, bytes: Vec<u8>) -> Result<bool, String> {
+    if let Some(parent) = Path::new(&file_path).parent() {
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+    }
+    tokio::fs::write(&file_path, bytes).await.map(|_| true).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn copy_file(source: String, target: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        let src_path = Path::new(&source);
+        let tgt_path = Path::new(&target);
+        if let Some(parent) = tgt_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if src_path.is_dir() {
+            fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+                fs::create_dir_all(dst)?;
+                for entry in fs::read_dir(src)? {
+                    let entry = entry?;
+                    let ty = entry.file_type()?;
+                    if ty.is_dir() {
+                        copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
+                    } else {
+                        fs::copy(entry.path(), dst.join(entry.file_name()))?;
+                    }
+                }
+                Ok(())
+            }
+            copy_dir_all(src_path, tgt_path).map(|_| true).map_err(|e| e.to_string())
+        } else {
+            fs::copy(src_path, tgt_path).map(|_| true).map_err(|e| e.to_string())
+        }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -312,9 +354,15 @@ async fn search_text(
     tokio::task::spawn_blocking(move || {
         let rg_bin_name = if cfg!(windows) { "rg.exe" } else { "rg" };
         let node_modules_rg = Path::new(&workspace).join("node_modules").join("@vscode").join("ripgrep").join("bin").join(rg_bin_name);
+        let project_rg = Path::new("out").join("node_modules").join("@vscode").join("ripgrep").join("bin").join(rg_bin_name);
+        let root_rg = Path::new("node_modules").join("@vscode").join("ripgrep").join("bin").join(rg_bin_name);
 
         let rg_cmd_path = if node_modules_rg.exists() {
             node_modules_rg.to_string_lossy().to_string()
+        } else if project_rg.exists() {
+            project_rg.to_string_lossy().to_string()
+        } else if root_rg.exists() {
+            root_rg.to_string_lossy().to_string()
         } else {
             rg_bin_name.to_string()
         };
@@ -606,59 +654,15 @@ fn open_external_url(url: String) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        Command::new("powershell")
-            .args(&["-NoProfile", "-NonInteractive", "-Command", &format!("Start-Process '{}'", url)])
+        Command::new("cmd")
+            .args(&["/C", "start", "", &url])
             .spawn()
-            .map_err(|e| format!("PowerShell Start-Process failed: {e}"))?;
+            .map_err(|e| format!("cmd start failed: {e}"))?;
     }
     Ok(())
 }
 
-fn start_oauth_callback_server(app_handle: tauri::AppHandle) {
-    std::thread::spawn(move || {
-        let listener = match std::net::TcpListener::bind("127.0.0.1:9888") {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!("[Falkon OAuth] Port 9888 already bound or unavailable: {}", e);
-                return;
-            }
-        };
 
-        println!("[Falkon OAuth] OAuth callback listener active on http://127.0.0.1:9888");
-
-        for stream in listener.incoming() {
-            if let Ok(mut stream) = stream {
-                use std::io::{Read, Write};
-                let mut buf = [0u8; 4096];
-                if let Ok(n) = stream.read(&mut buf) {
-                    if n > 0 {
-                        let request = String::from_utf8_lossy(&buf[..n]);
-                        if let Some(first_line) = request.lines().next() {
-                            let parts: Vec<&str> = first_line.split_whitespace().collect();
-                            if parts.len() >= 2 {
-                                let path_and_query = parts[1];
-                                let full_uri = format!("http://127.0.0.1:9888{}", path_and_query);
-
-                                if let Some(window) = app_handle.get_webview_window("main") {
-                                    let escaped = full_uri.replace('\\', "\\\\").replace('"', "\\\"");
-                                    let js = format!(
-                                        r#"if (window.__falkon_handle_uri) {{ window.__falkon_handle_uri("{escaped}"); }}"#,
-                                        escaped = escaped
-                                    );
-                                    let _ = window.eval(&js);
-                                }
-
-                                let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<!DOCTYPE html><html><head><title>Falkon IDE - Authentication</title><style>body{font-family:system-ui,sans-serif;background:#1e1e1e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;}h2{color:#4ec9b0;}p{color:#cccccc;}</style></head><body><h2>Authentication Successful!</h2><p>You have successfully authenticated. You may close this browser tab and return to Falkon IDE.</p><script>setTimeout(() => window.close(), 2000);</script></body></html>";
-                                let _ = stream.write_all(response.as_bytes());
-                                let _ = stream.flush();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
 
 // ─────────────────────────────────────────────
 //  Marketplace CORS Proxy
@@ -794,8 +798,7 @@ fn main() {
             let webview_window = app.get_webview_window("main")
                 .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
 
-            // Start dedicated OAuth callback listener on port 9888 for GitHub / Microsoft account login
-            start_oauth_callback_server(app.handle().clone());
+
 
             // Parse incoming CLI args for OAuth deep-link callback URLs
             let args: Vec<String> = std::env::args().collect();
@@ -811,9 +814,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_server_authority,
-            marketplace_proxy,
             // File system
-            read_file, write_file, read_dir, stat_file, file_exists,
+            read_file, read_file_bytes, write_file, write_file_bytes, copy_file, read_dir, stat_file, file_exists,
             create_dir, rename_file, create_temp_file, delete_file,
             // File dialogs
             open_folder_dialog, open_file_dialog, save_file_dialog,

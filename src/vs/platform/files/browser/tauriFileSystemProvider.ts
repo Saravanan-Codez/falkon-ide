@@ -28,7 +28,10 @@ import { ILogService } from '../../log/common/log.js';
 
 interface ITauriFS {
 	readFile(path: string): Promise<string | null>;
+	readFileBytes?(path: string): Promise<Uint8Array | number[] | null>;
 	writeFile(path: string, content: string): Promise<boolean>;
+	writeFileBytes?(path: string, bytes: Uint8Array): Promise<boolean>;
+	copy?(source: string, target: string): Promise<boolean>;
 	readDir(path: string): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymlink: boolean; size?: number; mtime?: number; ctime?: number }> | null>;
 	stat(path: string): Promise<{ isDirectory: boolean; isFile: boolean; isSymlink: boolean; size?: number; mtime?: number; ctime?: number } | null>;
 	exists(path: string): Promise<boolean>;
@@ -61,7 +64,7 @@ export class TauriFileSystemProvider extends Disposable implements IFileSystemPr
 	}
 
 	constructor(
-		logService: ILogService
+		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 	}
@@ -137,6 +140,12 @@ export class TauriFileSystemProvider extends Disposable implements IFileSystemPr
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const path = this.uriToPath(resource);
 		try {
+			if (typeof this.tauriFs.readFileBytes === 'function') {
+				const rawBytes = await this.tauriFs.readFileBytes(path);
+				if (rawBytes) {
+					return rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes);
+				}
+			}
 			const content = await this.tauriFs.readFile(path);
 			if (content === null || content === undefined) {
 				throw createFileSystemProviderError(`File not found: ${path}`, FileSystemProviderErrorCode.FileNotFound);
@@ -175,12 +184,29 @@ export class TauriFileSystemProvider extends Disposable implements IFileSystemPr
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		const path = this.uriToPath(resource);
 		try {
+			const fileExists = await this.tauriFs.exists(path);
+			if (fileExists && !opts.overwrite) {
+				throw createFileSystemProviderError(`File already exists: ${path}`, FileSystemProviderErrorCode.FileExists);
+			}
+			if (!fileExists && !opts.create) {
+				throw createFileSystemProviderError(`File does not exist: ${path}`, FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			if (typeof this.tauriFs.writeFileBytes === 'function') {
+				const ok = await this.tauriFs.writeFileBytes(path, content);
+				if (!ok) {
+					throw createFileSystemProviderError(`Failed to write binary file: ${path}`, FileSystemProviderErrorCode.NoPermissions);
+				}
+				return;
+			}
+
 			const text = new TextDecoder('utf-8').decode(content);
 			const ok = await this.tauriFs.writeFile(path, text);
 			if (!ok) {
 				throw createFileSystemProviderError(`Failed to write file: ${path}`, FileSystemProviderErrorCode.NoPermissions);
 			}
-		} catch (error) {
+		} catch (error: any) {
+			if (error?.code) throw error;
 			throw createFileSystemProviderError(`Unable to write file: ${path} (${error})`, FileSystemProviderErrorCode.NoPermissions);
 		}
 	}
@@ -207,6 +233,9 @@ export class TauriFileSystemProvider extends Disposable implements IFileSystemPr
 		const fromPath = this.uriToPath(from);
 		const toPath = this.uriToPath(to);
 		try {
+			if (opts.overwrite && await this.tauriFs.exists(toPath)) {
+				await this.tauriFs.delete(toPath);
+			}
 			await this.tauriFs.rename(fromPath, toPath);
 		} catch (error) {
 			throw createFileSystemProviderError(`Unable to rename from ${fromPath} to ${toPath} (${error})`, FileSystemProviderErrorCode.NoPermissions);
@@ -217,6 +246,13 @@ export class TauriFileSystemProvider extends Disposable implements IFileSystemPr
 		const fromPath = this.uriToPath(from);
 		const toPath = this.uriToPath(to);
 		try {
+			if (opts.overwrite && await this.tauriFs.exists(toPath)) {
+				await this.tauriFs.delete(toPath);
+			}
+			if (typeof this.tauriFs.copy === 'function') {
+				await this.tauriFs.copy(fromPath, toPath);
+				return;
+			}
 			const content = await this.tauriFs.readFile(fromPath);
 			if (content !== null && content !== undefined) {
 				await this.tauriFs.writeFile(toPath, content);

@@ -497,19 +497,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		const targetHref = this.createTargetUrl(workspace, options);
 		if (targetHref) {
-			if (options?.reuse) {
-				mainWindow.location.href = targetHref;
-				return true;
-			} else {
-				let result;
-				if (isStandalone()) {
-					result = mainWindow.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
-				} else {
-					result = mainWindow.open(targetHref);
-				}
-
-				return !!result;
-			}
+			mainWindow.location.href = targetHref;
+			return true;
 		}
 
 		return false;
@@ -624,13 +613,25 @@ function readCookie(name: string): string | undefined {
 			'workbench.iconTheme': 'vs-seti',
 			'window.titleBarStyle': 'custom',
 			'window.customTitleBarVisibility': 'always',
+			'window.dialogStyle': 'custom',
 			'window.menuBarVisibility': 'classic',
 			'window.commandCenter': true,
 			'workbench.navigationControl.enabled': true,
+			'workbench.layoutControl.enabled': true,
+			'workbench.tree.renderIndentGuides': 'always',
 			'security.workspace.trust.enabled': false,
 			'git.enabled': true,
 			'git.path': 'git',
 			'git.autoRepositoryDetection': true,
+			'workbench.colorCustomizations': {
+				'statusBar.background': '#181818',
+				'statusBar.noFolderBackground': '#181818',
+				'statusBar.debuggingBackground': '#181818',
+				'statusBar.border': '#2b2b2b',
+				'titleBar.activeBackground': '#181818',
+				'titleBar.inactiveBackground': '#181818',
+				'titleBar.border': '#2b2b2b'
+			},
 			...config.configurationDefaults
 		},
 		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Desktop` },

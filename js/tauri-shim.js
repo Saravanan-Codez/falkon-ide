@@ -9,12 +9,16 @@
  *  4. Exposes window.__vscode_tauri_bridge__ for the workbench init script
  */
 
+let _hasWarnedNoTauri = false;
 const invoke = (cmd, args) => {
   const win = window;
   if (win.__TAURI__?.core?.invoke) return win.__TAURI__.core.invoke(cmd, args);
   if (win.__TAURI_INTERNALS__?.invoke) return win.__TAURI_INTERNALS__.invoke(cmd, args);
   if (win.__TAURI_INVOKE__) return win.__TAURI_INVOKE__(cmd, args);
-  console.warn(`[Tauri] invoke not ready for: ${cmd}`);
+  if (!_hasWarnedNoTauri) {
+    _hasWarnedNoTauri = true;
+    console.info('[Tauri Shim] Running in browser environment (Tauri IPC native bridge inactive).');
+  }
   return Promise.resolve(null);
 };
 
@@ -24,7 +28,10 @@ const invoke = (cmd, args) => {
 
 window.__tauri_fs__ = {
   readFile: (path) => invoke('read_file', { filePath: path }),
+  readFileBytes: (path) => invoke('read_file_bytes', { filePath: path }),
   writeFile: (path, content) => invoke('write_file', { filePath: path, content }),
+  writeFileBytes: (path, bytes) => invoke('write_file_bytes', { filePath: path, bytes: Array.from(bytes) }),
+  copy: (source, target) => invoke('copy_file', { source, target }),
   readDir: (path) => invoke('read_dir', { dirPath: path }),
   stat: (path) => invoke('stat_file', { filePath: path }),
   exists: (path) => invoke('file_exists', { filePath: path }),
@@ -64,25 +71,25 @@ const listen = (event, handler) => {
 };
 
 window.__tauri_terminal__ = {
-  create: (cwd, rows, cols) => {
+  create: (cwd, cols, rows) => {
     let cleanCwd = typeof cwd === 'string' ? cwd : null;
     if (cleanCwd && cleanCwd.startsWith('file://')) {
       cleanCwd = cleanCwd.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
     }
     return invoke('terminal_create', {
       cwd: cleanCwd,
-      rows: (typeof rows === 'number' && rows > 0) ? rows : 24,
-      cols: (typeof cols === 'number' && cols > 0) ? cols : 80
+      cols: (typeof cols === 'number' && cols > 0) ? cols : 80,
+      rows: (typeof rows === 'number' && rows > 0) ? rows : 24
     });
   },
   write: (id, data) => {
     if (!id || data === undefined || data === null) return;
     invoke('terminal_write', { id, data: String(data) });
   },
-  resize: (id, rows, cols) => invoke('terminal_resize', {
+  resize: (id, cols, rows) => invoke('terminal_resize', {
     id,
-    rows: (typeof rows === 'number') ? rows : 24,
-    cols: (typeof cols === 'number') ? cols : 80
+    cols: (typeof cols === 'number') ? cols : 80,
+    rows: (typeof rows === 'number') ? rows : 24
   }),
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
