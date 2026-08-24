@@ -3,6 +3,7 @@ use std::fmt;
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(tag = "kind", content = "details")]
+#[allow(dead_code)]
 pub enum FalkonError {
     FileNotFound { path: String },
     FileAlreadyExists { path: String },

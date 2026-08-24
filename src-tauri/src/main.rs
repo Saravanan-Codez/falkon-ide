@@ -75,7 +75,7 @@ fn main() {
             }
         })
         .setup(move |app| {
-            let webview_window = app
+            let _webview_window = app
                 .get_webview_window("main")
                 .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
 

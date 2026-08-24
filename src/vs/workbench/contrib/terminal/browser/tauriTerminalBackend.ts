@@ -83,7 +83,7 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 			this._onProcessReady.fire({
 				pid: this.id,
 				cwd: this._cwd,
-				windowsPty: undefined
+				windowsPty: isWindows ? { backend: 'conpty', buildNumber: 19041 } as any : undefined
 			});
 
 			return undefined;

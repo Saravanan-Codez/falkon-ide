@@ -36,6 +36,7 @@ impl WorkspaceService {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_path_trusted<P: AsRef<Path>>(&self, path: P) -> bool {
         let target = path.as_ref();
         if let Some(ref ws) = *self.active_workspace.read().unwrap() {

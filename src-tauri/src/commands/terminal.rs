@@ -29,8 +29,8 @@ pub async fn terminal_create(
         let id = Uuid::new_v4().to_string();
         let pty_system = NativePtySystem::default();
         let size = PtySize {
-            rows: rows.unwrap_or(24),
-            cols: cols.unwrap_or(80),
+            rows: rows.unwrap_or(24).max(1),
+            cols: cols.unwrap_or(80).max(1),
             pixel_width: 0,
             pixel_height: 0,
         };
@@ -39,20 +39,25 @@ pub async fn terminal_create(
         })?;
 
         let shell = if cfg!(windows) {
-            let pwsh = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+            let pwsh = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+            let cmd_exe = r"C:\Windows\System32\cmd.exe";
             if Path::new(pwsh).exists() {
                 pwsh.to_string()
+            } else if Path::new(cmd_exe).exists() {
+                cmd_exe.to_string()
             } else {
-                "powershell.exe".to_string()
+                "cmd.exe".to_string()
             }
         } else {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
         };
 
         let mut cmd = CommandBuilder::new(&shell);
-        if let Some(c) = cwd {
-            if !c.is_empty() {
-                cmd.cwd(c);
+        if let Some(ref c) = cwd {
+            let clean = c.trim_start_matches("file:///").trim_start_matches("file://");
+            let p = Path::new(clean);
+            if p.exists() && p.is_dir() {
+                cmd.cwd(clean);
             }
         }
 

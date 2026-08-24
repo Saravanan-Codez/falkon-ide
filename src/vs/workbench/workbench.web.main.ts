@@ -169,7 +169,7 @@ import { TauriTerminalContribution } from './contrib/terminal/browser/tauriTermi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from './common/contributions.js';
 import { LifecyclePhase } from './services/lifecycle/common/lifecycle.js';
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Starting);
 
 // Tasks
 import './contrib/tasks/browser/taskService.js';

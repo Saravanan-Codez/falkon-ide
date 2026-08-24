@@ -73,13 +73,13 @@ const listen = (event, handler) => {
 window.__tauri_terminal__ = {
   create: (cwd, cols, rows) => {
     let cleanCwd = typeof cwd === 'string' ? cwd : null;
-    if (cleanCwd && cleanCwd.startsWith('file://')) {
+    if (cleanCwd) {
       cleanCwd = cleanCwd.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
     }
     return invoke('terminal_create', {
       cwd: cleanCwd,
-      cols: (typeof cols === 'number' && cols > 0) ? cols : 80,
-      rows: (typeof rows === 'number' && rows > 0) ? rows : 24
+      cols: (typeof cols === 'number' && cols > 0) ? Math.floor(cols) : 80,
+      rows: (typeof rows === 'number' && rows > 0) ? Math.floor(rows) : 24
     });
   },
   write: (id, data) => {
@@ -88,8 +88,8 @@ window.__tauri_terminal__ = {
   },
   resize: (id, cols, rows) => invoke('terminal_resize', {
     id,
-    cols: (typeof cols === 'number') ? cols : 80,
-    rows: (typeof rows === 'number') ? rows : 24
+    cols: (typeof cols === 'number' && cols > 0) ? Math.floor(cols) : 80,
+    rows: (typeof rows === 'number' && rows > 0) ? Math.floor(rows) : 24
   }),
   kill: (id) => invoke('terminal_kill', { id }),
   onData: (id, cb) => {
@@ -97,12 +97,12 @@ window.__tauri_terminal__ = {
       let str = '';
       if (typeof e === 'string') {
         str = e;
+      } else if (e && e.payload && typeof e.payload.payload === 'string') {
+        str = e.payload.payload;
       } else if (e && typeof e.payload === 'string') {
         str = e.payload;
       } else if (e && e.payload !== undefined && e.payload !== null) {
-        str = String(e.payload);
-      } else if (e !== undefined && e !== null) {
-        str = String(e);
+        str = typeof e.payload === 'object' ? JSON.stringify(e.payload) : String(e.payload);
       }
       if (str && typeof cb === 'function') {
         cb(str);
