@@ -45,7 +45,9 @@ export function makeNonNullableUsage(): SDKResultSuccess['usage'] {
 		server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
 		service_tier: 'standard',
 		speed: 'standard',
-	};
+		fallback_credit: null,
+		output_tokens_details: null,
+	} as any;
 }
 
 export function makeSystemInitMessage(sessionId: string): SDKSystemMessage {
@@ -152,8 +154,10 @@ export function makeMessageStart(messageId: string = 'msg_test'): BetaRawMessage
 				server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
 				service_tier: 'standard',
 				speed: 'standard',
-			},
-		},
+				fallback_credit: null,
+				output_tokens_details: null,
+			} as any,
+		} as any,
 	};
 }
 
@@ -197,7 +201,7 @@ export function makeThinkingDelta(index: number, thinking: string): BetaRawConte
 	return {
 		type: 'content_block_delta',
 		index,
-		delta: { type: 'thinking_delta', thinking },
+		delta: { type: 'thinking_delta', thinking } as any,
 	};
 }
 
@@ -261,8 +265,10 @@ export function makeAssistantMessage(
 				server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
 				service_tier: 'standard',
 				speed: 'standard',
-			},
-		},
+				fallback_credit: null,
+				output_tokens_details: null,
+			} as any,
+		} as any,
 		parent_tool_use_id: null,
 		uuid: TEST_UUID,
 		session_id: sessionId,

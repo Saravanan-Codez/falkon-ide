@@ -157,6 +157,7 @@ function makeMessage(model: string): Anthropic.Message {
 			inference_geo: null,
 			server_tool_use: null,
 			service_tier: null,
+			output_tokens_details: null,
 		},
 	};
 }
@@ -183,6 +184,7 @@ function makeCannedStream(model: string): Anthropic.MessageStreamEvent[] {
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
 			server_tool_use: null,
+			output_tokens_details: null,
 		},
 	};
 	return [
@@ -237,7 +239,9 @@ function makeResultSuccess(sessionId: string): SDKResultSuccess {
 			server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
 			service_tier: 'standard',
 			speed: 'standard',
-		},
+			fallback_credit: null,
+			output_tokens_details: null,
+		} as any,
 		modelUsage: {},
 		permission_denials: [],
 		uuid: TEST_UUID,

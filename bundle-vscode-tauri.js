@@ -224,8 +224,15 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 
       // Ensure extensionKind supports web execution for built-in extensions (Git, Language Features, Themes)
       packageJSON.extensionKind = ['ui', 'workspace', 'web'];
-      if (!packageJSON.browser && packageJSON.main) {
-        packageJSON.browser = packageJSON.main;
+      const hasValidBrowser = packageJSON.browser && fs.existsSync(path.join(extSrcPath, packageJSON.browser));
+      const hasValidDistBrowser = fs.existsSync(path.join(extSrcPath, 'dist/browser/extension.js'));
+      if (hasValidBrowser) {
+        // Keep valid browser bundle
+      } else if (hasValidDistBrowser) {
+        packageJSON.browser = './dist/browser/extension.js';
+      } else {
+        delete packageJSON.browser;
+        delete packageJSON.main;
       }
 
       let packageNLS;
@@ -261,6 +268,9 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
     fs.copyFileSync('src/dist/workbench.js', 'dist/dist/workbench.js');
     fs.copyFileSync('src/dist/workbench.css', 'dist/dist/workbench.css');
     fs.copyFileSync('src/dist/workbench.js', 'dist/out/vs/code/browser/workbench/workbench.js');
+    if (fs.existsSync('src/vs')) {
+      fs.cpSync('src/vs', 'dist/vs', { recursive: true });
+    }
     if (fs.existsSync('src/js/tauri-shim.js')) {
       fs.mkdirSync('js', { recursive: true });
       fs.mkdirSync('out/js', { recursive: true });

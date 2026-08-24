@@ -142,35 +142,88 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 
   // ┌─────────────────────────────────────────────────────────────────────────
   // │ 4. workbench.ts
-  // │    Upstream create() call uses mainWindow.document.body and no defaults.
-  // │    We: target #workbench-container, inject Falkon configurationDefaults.
+  // │    WorkspaceProvider.open: always reuse window via location.href in desktop
   // └─────────────────────────────────────────────────────────────────────────
+  {
+    file: 'src/vs/code/browser/workbench/workbench.ts',
+    desc: 'WorkspaceProvider.open: always reuse window via location.href in desktop',
+    find:
+`		const targetHref = this.createTargetUrl(workspace, options);
+		if (targetHref) {
+			if (options?.reuse) {
+				mainWindow.location.href = targetHref;
+				return true;
+			} else {
+				let result;
+				if (isStandalone()) {
+					result = mainWindow.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
+				} else {
+					result = mainWindow.open(targetHref);
+				}
+
+				return !!result;
+			}
+		}`,
+    replace:
+`		const targetHref = this.createTargetUrl(workspace, options);
+		if (targetHref) {
+			mainWindow.location.href = targetHref;
+			return true;
+		}`,
+  },
   {
     file: 'src/vs/code/browser/workbench/workbench.ts',
     desc: 'Target #workbench-container and inject Falkon configurationDefaults',
     find:
-`\tcreate(mainWindow.document.body, {
-\t\t...config,
-\t\twindowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: \`\${product.nameShort} Web\` },`,
+`	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
+		...config,
+		configurationDefaults: {
+			'workbench.colorTheme': 'Default Dark Modern',
+			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+			'workbench.iconTheme': 'vs-seti',
+			'window.titleBarStyle': 'custom',
+			'window.customTitleBarVisibility': 'always',
+			'window.menuBarVisibility': 'classic',
+			'window.commandCenter': true,
+			'workbench.navigationControl.enabled': true,
+			'security.workspace.trust.enabled': false,
+			'git.enabled': true,
+			'git.path': 'git',
+			'git.autoRepositoryDetection': true,
+			...config.configurationDefaults
+		},
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: \`\${product.nameShort} Desktop\` },`,
     replace:
-`\tcreate(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
-\t\t...config,
-\t\tconfigurationDefaults: {
-\t\t\t'workbench.colorTheme': 'Default Dark Modern',
-\t\t\t'workbench.preferredDarkColorTheme': 'Default Dark Modern',
-\t\t\t'workbench.iconTheme': 'vs-seti',
-\t\t\t'window.titleBarStyle': 'custom',
-\t\t\t'window.customTitleBarVisibility': 'always',
-\t\t\t'window.menuBarVisibility': 'classic',
-\t\t\t'window.commandCenter': true,
-\t\t\t'workbench.navigationControl.enabled': true,
-\t\t\t'security.workspace.trust.enabled': false,
-\t\t\t'git.enabled': true,
-\t\t\t'git.path': 'git',
-\t\t\t'git.autoRepositoryDetection': true,
-\t\t\t...config.configurationDefaults
-\t\t},
-\t\twindowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: \`\${product.nameShort} Desktop\` },`,
+`	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
+		...config,
+		configurationDefaults: {
+			'workbench.colorTheme': 'Default Dark Modern',
+			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+			'workbench.iconTheme': 'vs-seti',
+			'window.titleBarStyle': 'custom',
+			'window.customTitleBarVisibility': 'always',
+			'window.dialogStyle': 'custom',
+			'window.menuBarVisibility': 'classic',
+			'window.commandCenter': true,
+			'workbench.navigationControl.enabled': true,
+			'workbench.layoutControl.enabled': true,
+			'workbench.tree.renderIndentGuides': 'always',
+			'security.workspace.trust.enabled': false,
+			'git.enabled': true,
+			'git.path': 'git',
+			'git.autoRepositoryDetection': true,
+			'workbench.colorCustomizations': {
+				'statusBar.background': '#181818',
+				'statusBar.noFolderBackground': '#181818',
+				'statusBar.debuggingBackground': '#181818',
+				'statusBar.border': '#2b2b2b',
+				'titleBar.activeBackground': '#181818',
+				'titleBar.inactiveBackground': '#181818',
+				'titleBar.border': '#2b2b2b'
+			},
+			...config.configurationDefaults
+		},
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: \`\${product.nameShort} Desktop\` },`,
   },
 
 ];

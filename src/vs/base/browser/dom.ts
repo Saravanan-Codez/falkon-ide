@@ -1616,12 +1616,18 @@ export function windowOpenNoOpener(url: string): void {
 	// Falkon Dev Kit: When running inside Tauri, route external URLs through the system
 	// browser via the Tauri IPC. This is essential for OAuth flows (GitHub, Microsoft,
 	// Copilot) which must open in a real browser that can handle redirects and cookies.
+	const openExt = (mainWindow as any).__tauri_open_external__ || (globalThis as any).__tauri_open_external__;
 	const tauri = (mainWindow as any).__TAURI__ || (globalThis as any).__TAURI__;
-	if (tauri?.core?.invoke && (url.startsWith('https://') || url.startsWith('http://'))) {
-		const isLocal = url.includes('127.0.0.1') || url.includes('localhost');
-		if (!isLocal) {
-			tauri.core.invoke('open_external_url', { url }).catch(console.error);
-			return;
+	if (url.startsWith('https://') || url.startsWith('http://')) {
+		const isLocalServerHost = url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost') || url.startsWith('https://localhost');
+		if (!isLocalServerHost) {
+			if (typeof openExt === 'function') {
+				openExt(url);
+				return;
+			} else if (tauri?.core?.invoke) {
+				tauri.core.invoke('open_external_url', { url }).catch(console.error);
+				return;
+			}
 		}
 	}
 
@@ -1642,12 +1648,18 @@ export function windowOpenNoOpener(url: string): void {
 const popupWidth = 780, popupHeight = 640;
 export function windowOpenPopup(url: string): void {
 	// Falkon Dev Kit: Route through system browser for external OAuth/auth URLs
+	const openExt = (mainWindow as any).__tauri_open_external__ || (globalThis as any).__tauri_open_external__;
 	const tauri = (mainWindow as any).__TAURI__ || (globalThis as any).__TAURI__;
-	if (tauri?.core?.invoke && (url.startsWith('https://') || url.startsWith('http://'))) {
-		const isLocal = url.includes('127.0.0.1') || url.includes('localhost');
-		if (!isLocal) {
-			tauri.core.invoke('open_external_url', { url }).catch(console.error);
-			return;
+	if (url.startsWith('https://') || url.startsWith('http://')) {
+		const isLocalServerHost = url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost') || url.startsWith('https://localhost');
+		if (!isLocalServerHost) {
+			if (typeof openExt === 'function') {
+				openExt(url);
+				return;
+			} else if (tauri?.core?.invoke) {
+				tauri.core.invoke('open_external_url', { url }).catch(console.error);
+				return;
+			}
 		}
 	}
 

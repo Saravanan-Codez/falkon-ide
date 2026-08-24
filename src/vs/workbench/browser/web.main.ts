@@ -551,7 +551,9 @@ export class BrowserMain extends Disposable {
 
 		// Local file access: Tauri native filesystem or browser WebFileSystemAccess
 		if ((globalThis as any).__tauri_fs__ || (mainWindow as any).__tauri_fs__) {
-			fileService.registerProvider(Schemas.file, new TauriFileSystemProvider(logService));
+			const tauriFsProvider = new TauriFileSystemProvider(logService);
+			fileService.registerProvider(Schemas.file, tauriFsProvider);
+			fileService.registerProvider(Schemas.vscodeFileResource, tauriFsProvider);
 		} else if (WebFileSystemAccess.supported(mainWindow)) {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}

@@ -12,6 +12,7 @@ const dirsToClean = [
   'src/dist',
   '.build',
   '.esbuild-cache',
+  'src-tauri/target',
 ];
 
 console.log('🧹 Cleaning build caches and artifact directories...');

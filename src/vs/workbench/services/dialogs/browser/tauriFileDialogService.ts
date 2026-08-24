@@ -37,9 +37,7 @@ export class TauriFileDialogService extends AbstractFileDialogService implements
 	}
 
 	private openFolderInWorkspace(path: string) {
-		const url = new URL(window.location.href);
-		url.searchParams.set('folder', path);
-		window.location.href = url.toString();
+		this.hostService.openWindow([{ folderUri: URI.file(path) }]);
 	}
 
 	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
@@ -99,7 +97,11 @@ export class TauriFileDialogService extends AbstractFileDialogService implements
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		if (this.tauriDialogs) {
-			const path = await this.tauriDialogs.saveFile();
+			let defaultName: string | undefined;
+			if (options.defaultUri) {
+				defaultName = options.defaultUri.path.split('/').pop();
+			}
+			const path = await this.tauriDialogs.saveFile(defaultName);
 			if (path) {
 				return URI.file(path);
 			}
