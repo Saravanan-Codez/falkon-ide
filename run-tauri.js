@@ -126,10 +126,20 @@ if (existsSync(serverEntryPoint)) {
   }
 }
 
-console.log(`🚀 Starting Tauri: ${tauriArgs.join(' ')}...`);
-
 let child;
-if (isWin) {
+if (action === 'test') {
+  console.log('🚀 Running Cargo unit tests with MSVC environment...');
+  if (isWin) {
+    const comspec = process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe';
+    child = spawn(comspec, ['/d', '/s', '/c', 'cargo', 'test'], {
+      cwd: join(__dirname, 'src-tauri'),
+      stdio: 'inherit',
+      env,
+    });
+  } else {
+    child = spawn('cargo', ['test'], { cwd: join(__dirname, 'src-tauri'), stdio: 'inherit', env });
+  }
+} else if (isWin) {
   const comspec = process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe';
   child = spawn(comspec, ['/d', '/s', '/c', 'npx.cmd', ...tauriArgs], {
     stdio: 'inherit',
