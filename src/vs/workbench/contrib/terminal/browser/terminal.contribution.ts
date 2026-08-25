@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './tauriTerminalBackend.js';
+import './tauriTerminalBackend.js';
+import './tauriTerminalBackend.js';
+import './tauriTerminalBackend.js';
+import './tauriTerminalBackend.js';
 import { getFontSnippets } from '../../../../base/browser/fonts.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../base/common/network.js';

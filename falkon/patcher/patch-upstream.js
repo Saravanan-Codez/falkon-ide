@@ -189,7 +189,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 			'window.customTitleBarVisibility': 'never',
 			'window.dialogStyle': 'custom',
 			'window.menuBarVisibility': 'classic',
-			'window.commandCenter': true,
+			'window.commandCenter': false,
 			'workbench.navigationControl.enabled': true,
 			'workbench.layoutControl.enabled': true,
 			'workbench.tree.renderIndentGuides': 'always',
@@ -211,6 +211,86 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
     desc: 'Import Falkon TauriTerminalBackend in terminal contribution',
     find: `import { getFontSnippets } from '../../../../base/browser/fonts.js';`,
     replace: `import './tauriTerminalBackend.js';\nimport { getFontSnippets } from '../../../../base/browser/fonts.js';`,
+  },
+  {
+    file: 'src/vs/workbench/services/dialogs/browser/abstractFileDialogService.ts',
+    desc: 'Delegate pickFolderAndOpenSimplified to Tauri native folder dialog',
+    find:
+`	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
+		const title = nls.localize('openFolder.title', 'Open Folder');
+		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
+
+		const uris = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uri = uris?.[0];
+		if (uri) {
+			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+		}`,
+    replace:
+`	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
+		if ((window as any).__tauri_dialogs__) {
+			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
+			if (folderPath && typeof folderPath === 'string') {
+				const norm = folderPath.replace(/\\\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				return this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow });
+			}
+			return;
+		}
+		const title = nls.localize('openFolder.title', 'Open Folder');
+		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
+
+		const uris = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uri = uris?.[0];
+		if (uri) {
+			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+		}`,
+  },
+  {
+    file: 'src/vs/workbench/services/dialogs/browser/abstractFileDialogService.ts',
+    desc: 'Delegate pickFileAndOpenSimplified to Tauri native file dialog',
+    find:
+`	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
+		const title = nls.localize('openFile.title', 'Open File');
+		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
+
+		const uris = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uri = uris?.[0];
+		if (uri) {
+			this.addFileToRecentlyOpened(uri);
+
+			if (options.forceNewWindow || preferNewWindow) {
+				await this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+			} else {
+				await this.editorService.openEditors([{ resource: uri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+			}
+		}`,
+    replace:
+`	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
+		if ((window as any).__tauri_dialogs__) {
+			const filePath = await (window as any).__tauri_dialogs__.openFile();
+			if (filePath && typeof filePath === 'string') {
+				const norm = filePath.replace(/\\\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				this.addFileToRecentlyOpened(fileUri);
+				await this.editorService.openEditors([{ resource: fileUri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+				return;
+			}
+			return;
+		}
+		const title = nls.localize('openFile.title', 'Open File');
+		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
+
+		const uris = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
+		const uri = uris?.[0];
+		if (uri) {
+			this.addFileToRecentlyOpened(uri);
+
+			if (options.forceNewWindow || preferNewWindow) {
+				await this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
+			} else {
+				await this.editorService.openEditors([{ resource: uri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+			}
+		}`,
   },
 
 ];
