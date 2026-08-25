@@ -189,7 +189,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 			'window.customTitleBarVisibility': 'never',
 			'window.dialogStyle': 'custom',
 			'window.menuBarVisibility': 'classic',
-			'window.commandCenter': false,
+			'window.commandCenter': true,
 			'workbench.navigationControl.enabled': true,
 			'workbench.layoutControl.enabled': true,
 			'workbench.tree.renderIndentGuides': 'always',
@@ -209,8 +209,8 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
   {
     file: 'src/vs/workbench/contrib/terminal/browser/terminal.contribution.ts',
     desc: 'Import Falkon TauriTerminalBackend in terminal contribution',
-    find: `import { getFontSnippets } from '../../../../base/browser/fonts.js';`,
-    replace: `import './tauriTerminalBackend.js';\nimport { getFontSnippets } from '../../../../base/browser/fonts.js';`,
+    find: `import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';`,
+    replace: `import './tauriTerminalBackend.js';\nimport { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';`,
   },
   {
     file: 'src/vs/workbench/services/dialogs/browser/abstractFileDialogService.ts',
@@ -230,8 +230,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 		if ((window as any).__tauri_dialogs__) {
 			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
 			if (folderPath && typeof folderPath === 'string') {
-				const norm = folderPath.replace(/\\\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				const fileUri = URI.file(folderPath);
 				return this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow });
 			}
 			return;

@@ -81,7 +81,12 @@ async function buildAllExtensions() {
           ],
           target: ['node20'],
           sourcemap: true,
-          logLevel: 'warning'
+          logLevel: 'warning',
+          logOverride: {
+            // import.meta.dirname in html-language-features/server/javascriptLibs.ts
+            // is benign — it has a runtime fallback and does not affect functionality.
+            'empty-import-meta': 'silent',
+          },
         });
         successCount++;
       } catch (err) {

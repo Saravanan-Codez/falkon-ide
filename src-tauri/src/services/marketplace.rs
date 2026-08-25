@@ -11,6 +11,8 @@ impl MarketplaceService {
     fn is_domain_allowed(host: &str) -> bool {
         let h = host.to_lowercase();
         h == "marketplace.visualstudio.com"
+            || h == "open-vsx.org"
+            || h.ends_with(".open-vsx.org")
             || h.ends_with(".vsassets.io")
             || h.ends_with(".microsoft.com")
             || h.ends_with(".vscode-cdn.net")

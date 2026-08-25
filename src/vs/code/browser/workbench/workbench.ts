@@ -615,7 +615,7 @@ function readCookie(name: string): string | undefined {
 			'window.customTitleBarVisibility': 'never',
 			'window.dialogStyle': 'custom',
 			'window.menuBarVisibility': 'classic',
-			'window.commandCenter': false,
+			'window.commandCenter': true,
 			'workbench.navigationControl.enabled': true,
 			'workbench.layoutControl.enabled': true,
 			'workbench.tree.renderIndentGuides': 'always',

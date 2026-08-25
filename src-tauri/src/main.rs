@@ -4,7 +4,6 @@ mod commands;
 mod error;
 mod services;
 
-mod windows_snap;
 
 use commands::filesystem::*;
 use commands::git::*;
@@ -18,7 +17,6 @@ use commands::ext_host::*;
 use commands::lsp::*;
 use commands::process_manager::*;
 use services::workspace::WorkspaceService;
-use tauri::Manager;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -86,18 +84,8 @@ fn main() {
             }
         })
         .setup(move |app| {
-            let webview_window = app
-                .get_webview_window("main")
-                .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
-
-            #[cfg(target_os = "windows")]
-            {
-                if let Ok(hwnd) = webview_window.hwnd() {
-                    windows_snap::win_snap::setup_snap_layouts(hwnd.0 as _);
-                }
-            }
-
             // Parse incoming CLI args for OAuth deep-link callback URLs
+            let _ = app; // app used implicitly via tauri internals
             let args: Vec<String> = std::env::args().collect();
             for arg in args {
                 if arg.starts_with("code-oss://") || arg.starts_with("vscode://") {

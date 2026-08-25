@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +11,13 @@ const action = args[0] || 'dev';
 const extraArgs = args.slice(1);
 
 const env = { ...process.env };
+
+// Auto-kill any stale running instance of falkon_ide.exe to release binary file lock
+if (process.platform === 'win32') {
+  try {
+    execSync('taskkill /F /IM falkon_ide.exe /T', { stdio: 'ignore' });
+  } catch (_) {}
+}
 
 // ── Inject MSVC + Windows SDK paths ──────────────────────────────────────────
 function findMsvc() {

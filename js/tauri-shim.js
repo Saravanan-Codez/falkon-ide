@@ -47,12 +47,6 @@ window.__tauri_fs__ = {
 window.__tauri_dialogs__ = {
   openFolder: async () => {
     const res = await invoke('open_folder_dialog', {});
-    if (res && typeof res === 'string') {
-      const norm = res.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-      const fileUri = 'file://' + norm;
-      const target = window.location.origin + window.location.pathname + '?folder=' + encodeURIComponent(fileUri);
-      window.location.href = target;
-    }
     return res;
   },
   openFile: async (filters) => {

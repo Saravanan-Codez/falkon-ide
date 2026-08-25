@@ -73,7 +73,6 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 			tauriTerminal.onData(this._tauriSessionId, (data: string) => {
 				if (typeof data === 'string' && data.length > 0) {
 					this._onProcessData.fire(data);
-					this._onProcessData.fire({ data, trackCommit: false } as any);
 				}
 			});
 

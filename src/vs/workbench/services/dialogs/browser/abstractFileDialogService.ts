@@ -284,8 +284,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if ((window as any).__tauri_dialogs__) {
 			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
 			if (folderPath && typeof folderPath === 'string') {
-				const norm = folderPath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				const fileUri = URI.file(folderPath);
 				return this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow });
 			}
 			return;
