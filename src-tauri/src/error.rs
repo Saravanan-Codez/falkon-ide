@@ -19,6 +19,8 @@ pub enum FalkonError {
     GitError { message: String },
     IoError { message: String },
     WorkspaceNotConfigured,
+    ExtHostError { message: String },
+    LspError { message: String },
 }
 
 impl fmt::Display for FalkonError {
@@ -44,6 +46,8 @@ impl fmt::Display for FalkonError {
             FalkonError::GitError { message } => write!(f, "Git error: {message}"),
             FalkonError::IoError { message } => write!(f, "I/O error: {message}"),
             FalkonError::WorkspaceNotConfigured => write!(f, "No active workspace configured"),
+            FalkonError::ExtHostError { message } => write!(f, "Extension Host error: {message}"),
+            FalkonError::LspError { message } => write!(f, "LSP error: {message}"),
         }
     }
 }

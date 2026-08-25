@@ -1,14 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 function applyLogo() {
   console.log('🦅 Applying FalkonIDE logo across all required project locations...');
 
-  const fullSvgPath = path.resolve('FalkonIDE.svg');
-  const uiSvgPath = path.resolve('FalkonIDE-ui.svg');
+  const fullSvgPath = path.join(__dirname, 'FalkonIDE.svg');
+  const uiSvgPath = path.join(__dirname, 'FalkonIDE-ui.svg');
 
   if (!fs.existsSync(fullSvgPath) || !fs.existsSync(uiSvgPath)) {
-    console.error('❌ FalkonIDE.svg or FalkonIDE-ui.svg not found!');
+    console.error('❌ FalkonIDE.svg or FalkonIDE-ui.svg not found in falkon/branding/!');
     return;
   }
 

@@ -21,7 +21,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = __dirname;
+const ROOT = path.resolve(__dirname, '../../');
 
 // ─────────────────────────────────────────────
 //  Patch definitions  (upstream → Falkon)
@@ -235,6 +235,15 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 export function applyPatches() {
   console.log('\n🔧 Applying Falkon upstream patches...');
   let applied = 0, alreadyDone = 0, failed = 0;
+
+  // 0. Deploy Falkon core contributions into build environment
+  const tauriTerminalSource = path.join(ROOT, 'falkon/core/tauri-terminal.ts');
+  const tauriTerminalDest = path.join(ROOT, 'src/vs/workbench/contrib/terminal/browser/tauriTerminalBackend.ts');
+  if (fs.existsSync(tauriTerminalSource)) {
+    fs.mkdirSync(path.dirname(tauriTerminalDest), { recursive: true });
+    fs.copyFileSync(tauriTerminalSource, tauriTerminalDest);
+    console.log('  ✓  DEPLOYED: falkon/core/tauri-terminal.ts → src/vs/workbench/contrib/terminal/browser/tauriTerminalBackend.ts');
+  }
 
   for (const patch of PATCHES) {
     const filePath = path.join(ROOT, patch.file.replace(/\//g, path.sep));

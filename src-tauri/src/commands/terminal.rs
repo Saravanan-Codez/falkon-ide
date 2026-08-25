@@ -54,10 +54,18 @@ pub async fn terminal_create(
 
         let mut cmd = CommandBuilder::new(&shell);
         if let Some(ref c) = cwd {
-            let clean = c.trim_start_matches("file:///").trim_start_matches("file://");
-            let p = Path::new(clean);
+            // Strip URI scheme prefix (file:/// or file://)
+            let stripped = c
+                .trim_start_matches("file:///")
+                .trim_start_matches("file://");
+            // On Windows: convert forward slashes to backslashes
+            #[cfg(windows)]
+            let clean = stripped.replace('/', "\\");
+            #[cfg(not(windows))]
+            let clean = stripped.to_string();
+            let p = Path::new(&clean);
             if p.exists() && p.is_dir() {
-                cmd.cwd(clean);
+                cmd.cwd(&clean);
             }
         }
 

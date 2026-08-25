@@ -388,3 +388,27 @@ window.fetch = async function(resource, init) {
   }
   return originalFetch.apply(this, arguments);
 };
+
+// ─────────────────────────────────────────────
+// Extension Host & LSP IPC Helpers
+// ─────────────────────────────────────────────
+window.__falkon_ext_host__ = {
+  start: (nodePath) => invoke('ext_host_start', { nodePath }),
+  stop: () => invoke('ext_host_stop'),
+  status: () => invoke('ext_host_status'),
+  restart: (nodePath) => invoke('ext_host_restart', { nodePath }),
+};
+
+window.__falkon_lsp__ = {
+  start: (languageId, serverCmd, serverArgs, cwd) => invoke('lsp_start', { languageId, serverCmd, serverArgs, cwd }),
+  send: (sessionId, message) => invoke('lsp_send', { sessionId, message }),
+  stop: (sessionId) => invoke('lsp_stop', { sessionId }),
+  list: () => invoke('lsp_list'),
+};
+
+window.__falkon_process__ = {
+  spawn: (command, args, cwd) => invoke('process_spawn', { command, args, cwd }),
+  kill: (sessionId) => invoke('process_kill', { sessionId }),
+  sendStdin: (sessionId, input) => invoke('process_send_stdin', { sessionId, input }),
+  list: () => invoke('process_list'),
+};

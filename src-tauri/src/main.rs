@@ -4,6 +4,8 @@ mod commands;
 mod error;
 mod services;
 
+mod windows_snap;
+
 use commands::filesystem::*;
 use commands::git::*;
 use commands::marketplace::*;
@@ -12,6 +14,9 @@ use commands::search::*;
 use commands::settings::*;
 use commands::terminal::*;
 use commands::window::*;
+use commands::ext_host::*;
+use commands::lsp::*;
+use commands::process_manager::*;
 use services::workspace::WorkspaceService;
 use tauri::Manager;
 
@@ -55,6 +60,9 @@ fn main() {
 
     let pty_store: PtyStore = Arc::new(Mutex::new(HashMap::new()));
     let workspace_service = WorkspaceService::new();
+    let ext_host_state = ExtHostState::new();
+    let lsp_state = LspState::new();
+    let process_mgr_state = ProcessManagerState::new();
 
     // Store the last pending deep link URI received before the webview was ready.
     let pending_uri: std::sync::Arc<Mutex<Option<String>>> = std::sync::Arc::new(Mutex::new(None));
@@ -63,6 +71,9 @@ fn main() {
     tauri::Builder::default()
         .manage(pty_store)
         .manage(workspace_service)
+        .manage(ext_host_state)
+        .manage(lsp_state)
+        .manage(process_mgr_state)
         .on_page_load(move |webview, payload| {
             if payload.event() == tauri::webview::PageLoadEvent::Finished {
                 if let Ok(mut lock) = pending_uri_clone.lock() {
@@ -75,9 +86,16 @@ fn main() {
             }
         })
         .setup(move |app| {
-            let _webview_window = app
+            let webview_window = app
                 .get_webview_window("main")
                 .ok_or_else(|| Box::<dyn std::error::Error>::from("main window not found"))?;
+
+            #[cfg(target_os = "windows")]
+            {
+                if let Ok(hwnd) = webview_window.hwnd() {
+                    windows_snap::win_snap::setup_snap_layouts(hwnd.0 as _);
+                }
+            }
 
             // Parse incoming CLI args for OAuth deep-link callback URLs
             let args: Vec<String> = std::env::args().collect();
@@ -141,7 +159,22 @@ fn main() {
             marketplace_proxy,
             // Runners
             run_falkon,
-            run_cimple
+            run_cimple,
+            // Extension Host sidecar
+            ext_host_start,
+            ext_host_stop,
+            ext_host_status,
+            ext_host_restart,
+            // LSP manager
+            lsp_start,
+            lsp_send,
+            lsp_stop,
+            lsp_list,
+            // Process manager
+            process_spawn,
+            process_kill,
+            process_send_stdin,
+            process_list
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

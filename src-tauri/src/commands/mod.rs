@@ -6,3 +6,6 @@ pub mod window;
 pub mod marketplace;
 pub mod settings;
 pub mod runner;
+pub mod ext_host;
+pub mod lsp;
+pub mod process_manager;

@@ -601,6 +601,21 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		maxRestoreIcon.title = 'Maximize';
 		bindControl(maxRestoreIcon, 'toggleMaximize', 'rgba(255, 255, 255, 0.1)');
 
+		const updateMaxState = () => {
+			const isMax = window.outerWidth >= (screen.availWidth - 15) && window.outerHeight >= (screen.availHeight - 15);
+			if (isMax) {
+				maxRestoreIcon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+				maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+				maxRestoreIcon.title = 'Restore';
+			} else {
+				maxRestoreIcon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+				maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+				maxRestoreIcon.title = 'Maximize';
+			}
+		};
+		this._register(addDisposableListener(window, EventType.RESIZE, () => updateMaxState()));
+		updateMaxState();
+
 		// Close
 		const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close'));
 		closeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeClose));

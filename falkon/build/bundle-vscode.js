@@ -36,7 +36,7 @@ async function bundleTauriVSCode() {
   // Step 0: Apply Falkon patches to upstream VS Code source files.
   // This runs BEFORE compilation so changes always survive upstream git pulls.
   try {
-    const { applyPatches } = await import('./patch-upstream.js');
+    const { applyPatches } = await import('../patcher/patch-upstream.js');
     applyPatches();
   } catch (e) {
     console.error('❌ patch-upstream.js failed:', e);
@@ -45,14 +45,14 @@ async function bundleTauriVSCode() {
 
   // Apply FalkonIDE.svg logo across all project locations
   try {
-    await import('./apply-falkon-logo.mjs');
+    await import('../branding/apply-logo.mjs');
   } catch (e) {
     console.warn('⚠️ Could not run apply-falkon-logo:', e);
   }
 
   // Build all 38 built-in extension modules (Git, TypeScript, Markdown, Copilot, etc.)
   try {
-    await import('./build/build-all-extensions.mjs');
+    await import('../../build/build-all-extensions.mjs');
   } catch (e) {
     console.warn('⚠️ Could not run build-all-extensions:', e);
   }
@@ -100,6 +100,7 @@ async function bundleTauriVSCode() {
       tsconfig: 'tsconfig.json',
       plugins: [preferTsPlugin],
       minify: true,
+      ignoreAnnotations: true,
       banner: {
         js: `// VS Code Web Workbench bundle (Tauri edition)\n`,
       },
@@ -172,6 +173,24 @@ async function bundleTauriVSCode() {
     // Clean up temporary entrypoint
     if (fs.existsSync('src/dist/all-components.css')) {
       fs.unlinkSync('src/dist/all-components.css');
+    }
+
+    // Bundle Node.js Extension Host Server sidecar script
+    const extHostSource = 'falkon/core/ext-host-server.js';
+    if (fs.existsSync(extHostSource)) {
+      console.log('   - Bundling Node.js Extension Host sidecar script...');
+      await esbuild.build({
+        entryPoints: [extHostSource],
+        bundle: true,
+        outfile: 'dist/ext-host-server.js',
+        format: 'cjs',
+        target: 'node18',
+        platform: 'node',
+        minify: false,
+        logLevel: 'warning',
+      });
+      if (!fs.existsSync('src/dist')) fs.mkdirSync('src/dist', { recursive: true });
+      fs.copyFileSync('dist/ext-host-server.js', 'src/dist/ext-host-server.js');
     }
 
     // Also mirror to out/vs/code/browser/workbench/ for VS Code server
@@ -271,12 +290,13 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
     if (fs.existsSync('src/vs')) {
       fs.cpSync('src/vs', 'dist/vs', { recursive: true });
     }
-    if (fs.existsSync('src/js/tauri-shim.js')) {
+    const tauriShimSource = 'falkon/core/tauri-shim.js';
+    if (fs.existsSync(tauriShimSource)) {
       fs.mkdirSync('js', { recursive: true });
       fs.mkdirSync('out/js', { recursive: true });
-      fs.copyFileSync('src/js/tauri-shim.js', 'js/tauri-shim.js');
-      fs.copyFileSync('src/js/tauri-shim.js', 'dist/js/tauri-shim.js');
-      fs.copyFileSync('src/js/tauri-shim.js', 'out/js/tauri-shim.js');
+      fs.copyFileSync(tauriShimSource, 'js/tauri-shim.js');
+      fs.copyFileSync(tauriShimSource, 'dist/js/tauri-shim.js');
+      fs.copyFileSync(tauriShimSource, 'out/js/tauri-shim.js');
     }
     if (fs.existsSync('src/resources')) {
       fs.cpSync('src/resources', 'dist/resources', { recursive: true });
@@ -295,7 +315,7 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 		<title>Falkon IDE</title>
 		<link rel="icon" type="image/svg+xml" href="./favicon.svg">
 		<link rel="alternate icon" href="./favicon.ico">
-		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.133.0&quot;,&quot;extensionsGallery&quot;:{&quot;serviceUrl&quot;:&quot;https://marketplace.visualstudio.com/_apis/public/gallery&quot;,&quot;itemUrl&quot;:&quot;https://marketplace.visualstudio.com/items&quot;,&quot;resourceUrlTemplate&quot;:&quot;https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{name}/{version}/vspackage&quot;}}}">
+		<meta id="vscode-workbench-web-configuration" data-settings="{&quot;productConfiguration&quot;:{&quot;nameShort&quot;:&quot;Falkon IDE&quot;,&quot;nameLong&quot;:&quot;Falkon IDE&quot;,&quot;applicationName&quot;:&quot;falkon-ide&quot;,&quot;dataFolderName&quot;:&quot;.falkon-ide&quot;,&quot;licenseName&quot;:&quot;MIT&quot;,&quot;version&quot;:&quot;1.134.0&quot;,&quot;extensionsGallery&quot;:{&quot;serviceUrl&quot;:&quot;https://marketplace.visualstudio.com/_apis/public/gallery&quot;,&quot;itemUrl&quot;:&quot;https://marketplace.visualstudio.com/items&quot;,&quot;resourceUrlTemplate&quot;:&quot;https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{name}/{version}/vspackage&quot;}}}">
 		<meta id="vscode-workbench-auth-session" data-settings="">
 		<meta id="vscode-workbench-builtin-extensions" data-settings="${bundledExtSettings}">
 		<link rel="stylesheet" href="./dist/workbench.css">
@@ -320,7 +340,8 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 			globalThis._VSCODE_FILE_ROOT = _base;
 			self._VSCODE_FILE_ROOT = _base;
 		</script>
-		<script type="module" src="./js/tauri-shim.js"></script>
+		<!-- tauri-shim.js must run synchronously BEFORE the workbench module loads -->
+		<script src="./js/tauri-shim.js"></script>
 		<script type="module" src="./dist/workbench.js"></script>
 	</body>
 </html>
