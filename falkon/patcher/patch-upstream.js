@@ -185,8 +185,8 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 			'workbench.colorTheme': 'Default Dark Modern',
 			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
 			'workbench.iconTheme': 'vs-seti',
-			'window.titleBarStyle': 'custom',
-			'window.customTitleBarVisibility': 'always',
+			'window.titleBarStyle': 'native',
+			'window.customTitleBarVisibility': 'never',
 			'window.dialogStyle': 'custom',
 			'window.menuBarVisibility': 'classic',
 			'window.commandCenter': true,
@@ -201,14 +201,16 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 				'statusBar.background': '#181818',
 				'statusBar.noFolderBackground': '#181818',
 				'statusBar.debuggingBackground': '#181818',
-				'statusBar.border': '#2b2b2b',
-				'titleBar.activeBackground': '#181818',
-				'titleBar.inactiveBackground': '#181818',
-				'titleBar.border': '#2b2b2b'
+				'statusBar.border': '#2b2b2b'
 			},
 			...config.configurationDefaults
-		},
-		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: \`\${product.nameShort} Desktop\` },`,
+		},`,
+  },
+  {
+    file: 'src/vs/workbench/contrib/terminal/browser/terminal.contribution.ts',
+    desc: 'Import Falkon TauriTerminalBackend in terminal contribution',
+    find: `import { getFontSnippets } from '../../../../base/browser/fonts.js';`,
+    replace: `import './tauriTerminalBackend.js';\nimport { getFontSnippets } from '../../../../base/browser/fonts.js';`,
   },
 
 ];

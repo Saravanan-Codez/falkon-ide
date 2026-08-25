@@ -611,8 +611,8 @@ function readCookie(name: string): string | undefined {
 			'workbench.colorTheme': 'Default Dark Modern',
 			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
 			'workbench.iconTheme': 'vs-seti',
-			'window.titleBarStyle': 'custom',
-			'window.customTitleBarVisibility': 'always',
+			'window.titleBarStyle': 'native',
+			'window.customTitleBarVisibility': 'never',
 			'window.dialogStyle': 'custom',
 			'window.menuBarVisibility': 'classic',
 			'window.commandCenter': true,
@@ -627,14 +627,10 @@ function readCookie(name: string): string | undefined {
 				'statusBar.background': '#181818',
 				'statusBar.noFolderBackground': '#181818',
 				'statusBar.debuggingBackground': '#181818',
-				'statusBar.border': '#2b2b2b',
-				'titleBar.activeBackground': '#181818',
-				'titleBar.inactiveBackground': '#181818',
-				'titleBar.border': '#2b2b2b'
+				'statusBar.border': '#2b2b2b'
 			},
 			...config.configurationDefaults
 		},
-		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Desktop` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),

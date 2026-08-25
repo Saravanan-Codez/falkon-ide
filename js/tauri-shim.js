@@ -434,3 +434,22 @@ window.__falkon_process__ = {
   sendStdin: (sessionId, input) => invoke('process_send_stdin', { sessionId, input }),
   list: () => invoke('process_list'),
 };
+
+// ─────────────────────────────────────────────
+// Native Dialog Trigger Hooks
+// ─────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target && target.closest) {
+        const btn = target.closest('.monaco-button');
+        if (btn && btn.textContent && btn.textContent.trim().toLowerCase() === 'open folder') {
+          e.preventDefault();
+          e.stopPropagation();
+          window.__tauri_dialogs__.openFolder();
+        }
+      }
+    }, true);
+  });
+}

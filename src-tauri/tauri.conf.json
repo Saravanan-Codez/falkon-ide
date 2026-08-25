@@ -21,7 +21,7 @@
         "maximized": true,
         "theme": "Dark",
         "backgroundColor": "#181818",
-        "decorations": false
+        "decorations": true
       }
     ],
     "security": {

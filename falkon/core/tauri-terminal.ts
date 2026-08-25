@@ -72,7 +72,8 @@ export class TauriTerminalChildProcess extends Disposable implements ITerminalCh
 
 			tauriTerminal.onData(this._tauriSessionId, (data: string) => {
 				if (typeof data === 'string' && data.length > 0) {
-					this._onProcessData.fire({ data, trackCommit: false });
+					this._onProcessData.fire(data);
+					this._onProcessData.fire({ data, trackCommit: false } as any);
 				}
 			});
 
@@ -211,6 +212,8 @@ export class TauriTerminalBackend extends Disposable implements ITerminalBackend
 }
 
 import { ITerminalService } from './terminal.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 export class TauriTerminalContribution implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.tauriTerminal';
@@ -226,3 +229,6 @@ export class TauriTerminalContribution implements IWorkbenchContribution {
 		terminalService.registerProcessSupport(true);
 	}
 }
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Restored);

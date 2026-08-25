@@ -73,7 +73,11 @@ pub async fn terminal_create(
             let p = Path::new(&clean);
             if p.exists() && p.is_dir() {
                 cmd.cwd(&clean);
+            } else if let Ok(current) = std::env::current_dir() {
+                cmd.cwd(current);
             }
+        } else if let Ok(current) = std::env::current_dir() {
+            cmd.cwd(current);
         }
 
         let child = pair.slave.spawn_command(cmd).map_err(|e| FalkonError::PtyError {

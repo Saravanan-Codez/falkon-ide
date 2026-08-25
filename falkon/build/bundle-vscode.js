@@ -302,6 +302,23 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
       fs.cpSync('src/resources', 'dist/resources', { recursive: true });
     }
 
+    const codiconSrc = fs.existsSync('src/vs/base/browser/ui/codicons/codicon/codicon.ttf')
+      ? 'src/vs/base/browser/ui/codicons/codicon/codicon.ttf'
+      : (fs.existsSync('node_modules/@vscode/codicons/dist/codicon.ttf') ? 'node_modules/@vscode/codicons/dist/codicon.ttf' : null);
+
+    if (codiconSrc) {
+      const targets = [
+        'dist/codicon.ttf',
+        'dist/dist/codicon.ttf',
+        'dist/vs/base/browser/ui/codicons/codicon/codicon.ttf',
+        'dist/dist/vs/base/browser/ui/codicons/codicon/codicon.ttf'
+      ];
+      for (const target of targets) {
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(codiconSrc, target);
+      }
+    }
+
     // Process and mirror all 90+ built-in extension packages & assets
     const bundledExtensions = processBuiltinExtensions('extensions', 'dist/extensions');
     const bundledExtSettings = JSON.stringify(bundledExtensions).replace(/"/g, '&quot;');
@@ -320,16 +337,34 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 		<meta id="vscode-workbench-builtin-extensions" data-settings="${bundledExtSettings}">
 		<link rel="stylesheet" href="./dist/workbench.css">
 		<style>
+			*, *:before, *:after {
+				box-sizing: border-box;
+			}
 			html, body {
-				width: 100%; height: 100%;
-				margin: 0; padding: 0;
+				width: 100vw;
+				height: 100vh;
+				margin: 0;
+				padding: 0;
 				overflow: hidden;
 				background-color: #1e1e1e;
 				color: #cccccc;
+				position: fixed;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
 			}
 			#workbench-container {
-				width: 100%;
-				height: 100%;
+				width: 100vw;
+				height: 100vh;
+				display: flex;
+				flex-direction: column;
+				overflow: hidden;
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
 			}
 		</style>
 	</head>
@@ -339,21 +374,6 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
 			const _base = new URL('.', window.location.href).href;
 			globalThis._VSCODE_FILE_ROOT = _base;
 			self._VSCODE_FILE_ROOT = _base;
-
-			// If no workspace folder is specified in URL query, mount default local project folderUri (file:///)
-			const urlParams = new URLSearchParams(window.location.search);
-			if (!urlParams.has('folder') && !urlParams.has('workspace') && !urlParams.has('ew')) {
-				const defaultFolder = '/d:/Falkon_labs/falkon-ide';
-				const meta = document.getElementById('vscode-workbench-web-configuration');
-				if (meta) {
-					try {
-						const config = JSON.parse(meta.getAttribute('data-settings') || '{}');
-						delete config.remoteAuthority;
-						config.folderUri = { scheme: 'file', path: defaultFolder };
-						meta.setAttribute('data-settings', JSON.stringify(config));
-					} catch (_e) {}
-				}
-			}
 		</script>
 		<!-- tauri-shim.js must run synchronously BEFORE the workbench module loads -->
 		<script src="./js/tauri-shim.js"></script>
