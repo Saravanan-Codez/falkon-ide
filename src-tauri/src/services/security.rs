@@ -95,7 +95,6 @@ impl SecurityService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
 
     #[test]
     fn test_normalize_path_traversal() {

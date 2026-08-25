@@ -52,7 +52,8 @@ if (msvcInfo) {
   const sdkShInc = join(WIN_INC, 'shared');
 
   const origPath = env.PATH || env.Path || env.path || process.env.PATH || process.env.Path || '';
-  const injectedPath = `${msvcBin};${origPath}`;
+  const sys32 = 'C:\\Windows\\System32';
+  const injectedPath = `${msvcBin};${sys32};${origPath}`;
   env.PATH = injectedPath;
   env.Path = injectedPath;
 
@@ -102,7 +103,7 @@ for (const gitPath of gitPaths) {
 }
 
 // ── Start Stock VS Code Node.js Server Sidecar ──────────────────────────────
-const serverEntryPoint = join(__dirname, 'out', 'server-main.js');
+const serverEntryPoint = join(__dirname, '../../out', 'server-main.js');
 if (existsSync(serverEntryPoint)) {
   try {
     const res = await fetch('http://127.0.0.1:9888/').catch(() => null);
@@ -126,27 +127,31 @@ if (existsSync(serverEntryPoint)) {
   }
 }
 
+const rootDir = join(__dirname, '../../');
+const srcTauriDir = join(__dirname, '../../src-tauri');
+
 let child;
 if (action === 'test') {
   console.log('🚀 Running Cargo unit tests with MSVC environment...');
   if (isWin) {
-    const comspec = process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe';
-    child = spawn(comspec, ['/d', '/s', '/c', 'cargo', 'test'], {
-      cwd: join(__dirname, 'src-tauri'),
+    child = spawn('cargo', ['test'], {
+      cwd: srcTauriDir,
       stdio: 'inherit',
       env,
+      shell: true
     });
   } else {
-    child = spawn('cargo', ['test'], { cwd: join(__dirname, 'src-tauri'), stdio: 'inherit', env });
+    child = spawn('cargo', ['test'], { cwd: srcTauriDir, stdio: 'inherit', env });
   }
 } else if (isWin) {
-  const comspec = process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe';
-  child = spawn(comspec, ['/d', '/s', '/c', 'npx.cmd', ...tauriArgs], {
+  child = spawn('npx.cmd', tauriArgs, {
+    cwd: rootDir,
     stdio: 'inherit',
     env,
+    shell: true
   });
 } else {
-  child = spawn('npx', tauriArgs, { stdio: 'inherit', env });
+  child = spawn('npx', tauriArgs, { cwd: rootDir, stdio: 'inherit', env });
 }
 
 child.on('exit', (code) => {

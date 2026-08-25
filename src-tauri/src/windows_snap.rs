@@ -5,18 +5,14 @@
 #[cfg(target_os = "windows")]
 pub mod win_snap {
     use std::sync::atomic::{AtomicI32, Ordering};
-    use windows_sys::Win32::Foundation::{BOOL, FALSE, HWND, LPARAM, LRESULT, RECT, TRUE, WPARAM};
-    use windows_sys::Win32::Graphics::Dwm::{DwmExtendFrameIntoClientArea, MARGINS};
-    use windows_sys::Win32::UI::Controls::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
+    use windows_sys::Win32::Foundation::{FALSE, HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
-    const SUBCLASS_ID: usize = 7713;
-
-    // Window control measurements matching the frontend title bar
-    // Total container width = 138px (Close: 46px, Maximize: 46px, Minimize: 46px)
-    // Titlebar height = 35px
+    // Default titlebar height (35px) and control button width (46px) matching titlebarPart.ts
     static TITLEBAR_HEIGHT: AtomicI32 = AtomicI32::new(35);
     static CONTROL_WIDTH: AtomicI32 = AtomicI32::new(46);
+
+    static mut OLD_WND_PROC: WNDPROC = None;
 
     pub fn setup_snap_layouts(raw_hwnd: isize) {
         if raw_hwnd == 0 {
@@ -32,19 +28,13 @@ pub mod win_snap {
             let new_style = current_style | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME | WS_CAPTION;
             SetWindowLongPtrW(hwnd, GWL_STYLE, new_style as isize);
 
-            // 2. Extend frame into client area slightly so DWM handles native window borders & shadows
-            let margins = MARGINS {
-                cxLeftWidth: 1,
-                cxRightWidth: 1,
-                cyTopHeight: 1,
-                cyBottomHeight: 1,
-            };
-            let _ = DwmExtendFrameIntoClientArea(hwnd, &margins);
+            // 2. Subclass window procedure via GWLP_WNDPROC
+            let old_proc = SetWindowLongPtrW(hwnd, GWLP_WNDPROC, snap_wnd_proc as *const () as usize as isize);
+            if old_proc != 0 {
+                OLD_WND_PROC = std::mem::transmute(old_proc);
+            }
 
-            // 3. Attach subclass procedure to handle WM_NCHITTEST and WM_NCCALCSIZE
-            SetWindowSubclass(hwnd, Some(snap_subclass_proc), SUBCLASS_ID, 0);
-
-            // 4. Trigger frame update
+            // 3. Trigger frame update
             SetWindowPos(
                 hwnd,
                 0 as _,
@@ -57,13 +47,11 @@ pub mod win_snap {
         }
     }
 
-    unsafe extern "system" fn snap_subclass_proc(
+    unsafe extern "system" fn snap_wnd_proc(
         hwnd: HWND,
         msg: u32,
         wparam: WPARAM,
         lparam: LPARAM,
-        uidsubclass: usize,
-        _dwrefdata: usize,
     ) -> LRESULT {
         match msg {
             WM_NCCALCSIZE => {
@@ -72,10 +60,10 @@ pub mod win_snap {
                 if wparam != 0 {
                     return 0;
                 }
-                DefSubclassProc(hwnd, msg, wparam, lparam)
+                CallWindowProcW(OLD_WND_PROC, hwnd, msg, wparam, lparam)
             }
             WM_NCHITTEST => {
-                let default_res = DefSubclassProc(hwnd, msg, wparam, lparam);
+                let default_res = CallWindowProcW(OLD_WND_PROC, hwnd, msg, wparam, lparam);
 
                 // Unpack loword (x) and hiword (y) screen coordinates (signed for multi-monitor setups)
                 let x = (lparam as u32 & 0xffff) as i16 as i32;
@@ -155,20 +143,7 @@ pub mod win_snap {
 
                 default_res
             }
-            WM_NCLBUTTONDOWN => {
-                match wparam as u32 {
-                    ht if ht == HTMAXBUTTON as u32 => {
-                        // Let DefSubclassProc process button down natively for maximize / snap
-                        DefSubclassProc(hwnd, msg, wparam, lparam)
-                    }
-                    _ => DefSubclassProc(hwnd, msg, wparam, lparam),
-                }
-            }
-            WM_NCDESTROY => {
-                RemoveWindowSubclass(hwnd, Some(snap_subclass_proc), uidsubclass);
-                DefSubclassProc(hwnd, msg, wparam, lparam)
-            }
-            _ => DefSubclassProc(hwnd, msg, wparam, lparam),
+            _ => CallWindowProcW(OLD_WND_PROC, hwnd, msg, wparam, lparam),
         }
     }
 }

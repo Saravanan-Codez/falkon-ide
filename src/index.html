@@ -30,6 +30,21 @@
 			const _base = new URL('.', window.location.href).href;
 			globalThis._VSCODE_FILE_ROOT = _base;
 			self._VSCODE_FILE_ROOT = _base;
+
+			// If no workspace folder is specified in URL query, mount default local project folderUri (file:///)
+			const urlParams = new URLSearchParams(window.location.search);
+			if (!urlParams.has('folder') && !urlParams.has('workspace') && !urlParams.has('ew')) {
+				const defaultFolder = '/d:/Falkon_labs/falkon-ide';
+				const meta = document.getElementById('vscode-workbench-web-configuration');
+				if (meta) {
+					try {
+						const config = JSON.parse(meta.getAttribute('data-settings') || '{}');
+						delete config.remoteAuthority;
+						config.folderUri = { scheme: 'file', path: defaultFolder };
+						meta.setAttribute('data-settings', JSON.stringify(config));
+					} catch (_e) {}
+				}
+			}
 		</script>
 		<!-- tauri-shim.js must run synchronously BEFORE the workbench module loads -->
 		<script src="./js/tauri-shim.js"></script>

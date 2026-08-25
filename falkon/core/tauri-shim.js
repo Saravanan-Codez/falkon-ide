@@ -45,8 +45,31 @@ window.__tauri_fs__ = {
 // ─────────────────────────────────────────────
 
 window.__tauri_dialogs__ = {
-  openFolder: () => invoke('open_folder_dialog', {}),
-  openFile: (filters) => invoke('open_file_dialog', { filters: filters ?? [] }),
+  openFolder: async () => {
+    const res = await invoke('open_folder_dialog', {});
+    if (res && typeof res === 'string') {
+      const norm = res.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+      const fileUri = 'file://' + norm;
+      const target = window.location.origin + window.location.pathname + '?folder=' + encodeURIComponent(fileUri);
+      window.location.href = target;
+    }
+    return res;
+  },
+  openFile: async (filters) => {
+    const res = await invoke('open_file_dialog', { filters: filters ?? [] });
+    if (res && typeof res === 'string') {
+      const norm = res.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+      const fileUri = 'file://' + norm;
+      const payload = JSON.stringify([['openFile', fileUri]]);
+      const currentFolder = new URLSearchParams(window.location.search).get('folder');
+      let target = window.location.origin + window.location.pathname + '?payload=' + encodeURIComponent(payload);
+      if (currentFolder) {
+        target += '&folder=' + encodeURIComponent(currentFolder);
+      }
+      window.location.href = target;
+    }
+    return res;
+  },
   saveFile: (defaultName) => invoke('save_file_dialog', { defaultName: defaultName ?? null }),
 };
 
