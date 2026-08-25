@@ -15,7 +15,7 @@ Visual Studio Code is the world's most popular code editor, but its traditional 
 
 **Falkon IDE** leverages the official open-source VS Code source code (`microsoft/vscode`), but replaces Electron with **Tauri v2 + Rust**:
 
-| Feature / Metric | Standard VS Code (Electron) | Falkon DevKit (Tauri v2 + Rust) |
+| Feature / Metric | Standard VS Code (Electron) | Falkon IDE (Tauri v2 + Rust) |
 | :--- | :--- | :--- |
 | **Idle Memory (RAM)** | ~500 MB - 1.5 GB | **~100 MB - 250 MB (70-80% Reduction)** |
 | **Installer Size** | ~250 MB - 350 MB | **~60 MB - 90 MB (65%+ Lighter)** |
