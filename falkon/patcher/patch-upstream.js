@@ -175,24 +175,9 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
     file: 'src/vs/code/browser/workbench/workbench.ts',
     desc: 'Target #workbench-container and inject Falkon configurationDefaults',
     find:
-`	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
+`	create(mainWindow.document.body, {
 		...config,
-		configurationDefaults: {
-			'workbench.colorTheme': 'Default Dark Modern',
-			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
-			'workbench.iconTheme': 'vs-seti',
-			'window.titleBarStyle': 'custom',
-			'window.customTitleBarVisibility': 'always',
-			'window.menuBarVisibility': 'classic',
-			'window.commandCenter': true,
-			'workbench.navigationControl.enabled': true,
-			'security.workspace.trust.enabled': false,
-			'git.enabled': true,
-			'git.path': 'git',
-			'git.autoRepositoryDetection': true,
-			...config.configurationDefaults
-		},
-		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: \`\${product.nameShort} Desktop\` },`,
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: \`\${product.nameShort} Web\` },`,
     replace:
 `	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
 		...config,

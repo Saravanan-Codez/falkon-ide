@@ -77,24 +77,16 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.133.0',
-			nameShort: 'Falkon IDE',
-			nameLong: 'Falkon IDE',
-			applicationName: 'falkon-ide',
-			dataFolderName: '.falkon-ide',
-			urlProtocol: 'falkon-ide',
+			version: '1.104.0-dev',
+			nameShort: 'Code - OSS Dev',
+			nameLong: 'Code - OSS Dev',
+			applicationName: 'code-oss',
+			dataFolderName: '.vscode-oss',
+			urlProtocol: 'code-oss',
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			builtInExtensionsEnabledWithAutoUpdates: [],
-			builtInExtensions: [],
-			extensionsGallery: {
-				serviceUrl: 'https://marketplace.visualstudio.com/_apis/public/gallery',
-				itemUrl: 'https://marketplace.visualstudio.com/items',
-				resourceUrlTemplate: 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{name}/{version}/vspackage',
-				controlUrl: 'https://az764295.vo.msecnd.net/extensions/marketplace.json'
-			},
 			defaultChatAgent: {
 				extensionId: 'GitHub.copilot',
 				chatExtensionId: 'GitHub.copilot-chat',

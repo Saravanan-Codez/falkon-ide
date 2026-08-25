@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { createReadStream, promises } from 'fs';
 import type * as http from 'http';
-import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
-import * as child_process from 'child_process';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { getMediaMime } from '../../base/common/mime.js';
 import { isLinux } from '../../base/common/platform.js';
@@ -30,77 +27,6 @@ import { isString, Mutable } from '../../base/common/types.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { IExtensionManifest } from '../../platform/extensions/common/extensions.js';
 import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
-
-/**
- * Invoke a native file picker dialog using the best available tool for the platform.
- *
- * Priority:
- *   Linux:   zenity (GTK/GNOME) → kdialog (KDE) → null (falls back to browser QuickPick)
- *   macOS:   osascript "choose file/folder" → null
- *   Windows: PowerShell System.Windows.Forms.FolderBrowserDialog → null
- *
- * All platforms gracefully fall back to null when the tool is not available
- * (e.g. headless CI, Wayland without XDG portal support, etc.).
- */
-async function nativeFilePicker(opts: { folder?: boolean; save?: boolean; defaultPath?: string }): Promise<string | null> {
-	const platform = process.platform; // 'linux' | 'darwin' | 'win32'
-	const isFolder = !!opts.folder;
-	const isSave = !!opts.save;
-	const defaultPath = opts.defaultPath || (platform === 'win32' ? 'C:\\' : process.env['HOME'] || '/');
-
-	function spawnPick(cmd: string, args: string[]): Promise<string | null> {
-		return new Promise((resolve) => {
-			const proc = child_process.spawn(cmd, args, { stdio: ['ignore', 'pipe', 'ignore'] });
-			let out = '';
-			proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
-			proc.on('close', (code: number) => resolve(code === 0 && out.trim() ? out.trim() : null));
-			proc.on('error', () => resolve(null));
-		});
-	}
-
-	if (platform === 'darwin') {
-		// macOS: use osascript (always available, no install required)
-		const kind = isFolder ? 'folder' : 'file';
-		const appleScript = isSave
-			? `POSIX path of (choose file name with prompt "Save File" default name "${defaultPath.split('/').pop() || 'untitled'}" default location "${defaultPath}")`
-			: `POSIX path of (choose ${kind} with prompt "Open ${isFolder ? 'Folder' : 'File'}" default location "${defaultPath}")`;
-		return spawnPick('osascript', ['-e', appleScript]);
-	}
-
-	if (platform === 'win32') {
-		// Windows: use PowerShell (always available on Windows 7+)
-		let ps: string;
-		if (isFolder) {
-			ps = `Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.FolderBrowserDialog; $d.SelectedPath='${defaultPath.replace(/'/g, "'\''")}';
-				if($d.ShowDialog() -eq 'OK'){$d.SelectedPath}`;
-		} else if (isSave) {
-			ps = `Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.SaveFileDialog; $d.InitialDirectory='${defaultPath.replace(/'/g, "'\''")}';
-				if($d.ShowDialog() -eq 'OK'){$d.FileName}`;
-		} else {
-			ps = `Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; $d.InitialDirectory='${defaultPath.replace(/'/g, "'\''")}';
-				if($d.ShowDialog() -eq 'OK'){$d.FileName}`;
-		}
-		return spawnPick('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps]);
-	}
-
-	// Linux: zenity (GTK, works on X11 and Wayland via XDG portal) → kdialog fallback
-	const zenityArgs = ['--file-selection'];
-	if (isFolder) { zenityArgs.push('--directory'); }
-	if (isSave) { zenityArgs.push('--save', '--confirm-overwrite'); }
-	if (opts.defaultPath) { zenityArgs.push('--filename', opts.defaultPath); }
-	zenityArgs.push('--title', isFolder ? 'Open Folder' : isSave ? 'Save File' : 'Open File');
-
-	const zenityResult = await spawnPick('zenity', zenityArgs);
-	if (zenityResult) { return zenityResult; }
-
-	// kdialog fallback (KDE Plasma, also works on Wayland)
-	const kdArgs = isSave
-		? ['--getsavefilename', defaultPath]
-		: isFolder
-			? ['--getexistingdirectory', defaultPath]
-			: ['--getopenfilename', defaultPath];
-	return spawnPick('kdialog', kdArgs);
-}
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
@@ -132,12 +58,11 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 			// Check if file modified since
 			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
+			responseHeaders['Etag'] = etag;
 			if (req.headers['if-none-match'] === etag) {
-				res.writeHead(304);
+				res.writeHead(304, responseHeaders);
 				return void res.end();
 			}
-
-			responseHeaders['Etag'] = etag;
 		} else if (cacheControl === CacheControl.NO_EXPIRY) {
 			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
 		} else if (cacheControl === CacheControl.NO_CACHING) {
@@ -212,7 +137,7 @@ export class WebClientServer {
 	 * @param parsedUrl The URL to handle, including base and product path
 	 * @param pathname The pathname of the URL, without base and product path
 	 */
-	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery, pathname: string): Promise<void> {
+	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL, pathname: string): Promise<void> {
 		try {
 			if (pathname.startsWith(STATIC_PATH) && pathname.charCodeAt(STATIC_PATH.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
@@ -227,51 +152,6 @@ export class WebClientServer {
 			if (pathname.startsWith(WEB_EXTENSION_PATH) && pathname.charCodeAt(WEB_EXTENSION_PATH.length) === CharCode.Slash) {
 				// extension resource support
 				return this._handleWebExtensionResource(req, res, pathname.substring(WEB_EXTENSION_PATH.length));
-			}
-
-			// ── Native file dialog API ─────────────────────────────────────────────
-			// Works cross-platform: osascript (macOS), PowerShell (Windows),
-			// zenity/kdialog (Linux X11 + Wayland). No external install required.
-			if (pathname === '/api/dialog/open-folder') {
-				const queryPath = Array.isArray(parsedUrl.query['path']) ? parsedUrl.query['path'][0] : parsedUrl.query['path'] as string | undefined;
-				const selected = await nativeFilePicker({ folder: true, defaultPath: queryPath });
-				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-				return void res.end(JSON.stringify({ path: selected }));
-			}
-			if (pathname === '/api/dialog/open-file') {
-				const queryPath = Array.isArray(parsedUrl.query['path']) ? parsedUrl.query['path'][0] : parsedUrl.query['path'] as string | undefined;
-				const selected = await nativeFilePicker({ folder: false, defaultPath: queryPath });
-				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-				return void res.end(JSON.stringify({ path: selected }));
-			}
-			if (pathname === '/api/dialog/save-file') {
-				const queryPath = Array.isArray(parsedUrl.query['path']) ? parsedUrl.query['path'][0] : parsedUrl.query['path'] as string | undefined;
-				const selected = await nativeFilePicker({ save: true, defaultPath: queryPath });
-				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-				return void res.end(JSON.stringify({ path: selected }));
-			}
-
-			// ── Window Controls API ────────────────────────────────────────────────
-			if (pathname === '/api/window/minimize') {
-				if (process.platform === 'linux') {
-					child_process.exec('xdotool getactivewindow windowminimize 2>/dev/null || wmctrl -r :ACTIVE: -b add,shaded 2>/dev/null');
-				} else if (process.platform === 'win32') {
-					child_process.exec('powershell -Command "(New-Object -ComObject Shell.Application).MinimizeAll()"');
-				}
-				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-				return void res.end(JSON.stringify({ ok: true }));
-			}
-			if (pathname === '/api/window/toggleMaximize' || pathname === '/api/window/toggle-maximize') {
-				if (process.platform === 'linux') {
-					child_process.exec('wmctrl -r :ACTIVE: -b toggle,maximized_vert,maximized_horz 2>/dev/null');
-				}
-				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-				return void res.end(JSON.stringify({ ok: true }));
-			}
-			if (pathname === '/api/window/close') {
-				setTimeout(() => process.exit(0), 100);
-				res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-				return void res.end(JSON.stringify({ ok: true }));
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -292,14 +172,7 @@ export class WebClientServer {
 		// Strip the this._staticRoute from the path
 		const normalizedPathname = decodeURIComponent(resourcePath); // support paths that are uri-encoded (e.g. spaces => %20)
 
-		let filePath = join(APP_ROOT, normalizedPathname); // join also normalizes the path
-		if (!fs.existsSync(filePath)) {
-			if (fs.existsSync(join(APP_ROOT, 'src', normalizedPathname))) {
-				filePath = join(APP_ROOT, 'src', normalizedPathname);
-			} else if (fs.existsSync(join(APP_ROOT, 'dist', normalizedPathname))) {
-				filePath = join(APP_ROOT, 'dist', normalizedPathname);
-			}
-		}
+		const filePath = join(APP_ROOT, normalizedPathname); // join also normalizes the path
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -382,7 +255,7 @@ export class WebClientServer {
 	/**
 	 * Handle HTTP requests for /
 	 */
-	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL): Promise<void> {
 
 		const getFirstHeader = (headerName: string) => {
 			const val = req.headers[headerName];
@@ -392,8 +265,9 @@ export class WebClientServer {
 		// Prefix routes with basePath for clients
 		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
 
-		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
-		if (typeof queryConnectionToken === 'string') {
+		const queryConnectionTokens = parsedUrl.searchParams.getAll(connectionTokenQueryName);
+		if (queryConnectionTokens.length === 1) {
+			const queryConnectionToken = queryConnectionTokens[0];
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
@@ -406,13 +280,10 @@ export class WebClientServer {
 				}
 			);
 
-			const newQuery = Object.create(null);
-			for (const key in parsedUrl.query) {
-				if (key !== connectionTokenQueryName) {
-					newQuery[key] = parsedUrl.query[key];
-				}
-			}
-			const newLocation = url.format({ pathname: basePath, query: newQuery });
+			const newQuery = new URLSearchParams(parsedUrl.searchParams);
+			newQuery.delete(connectionTokenQueryName);
+			const queryString = newQuery.toString();
+			const newLocation = queryString ? `${basePath}?${queryString}` : basePath;
 			responseHeaders['Location'] = newLocation;
 
 			res.writeHead(302, responseHeaders);
@@ -503,7 +374,7 @@ export class WebClientServer {
 			_wrapWebWorkerExtHostInIframe,
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
-			enableWorkspaceTrust: false,
+			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			enabledExtensionProposedApi: this._environmentService.args['enable-proposed-api'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
@@ -570,7 +441,7 @@ export class WebClientServer {
 			'worker-src \'self\' data: blob:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
-			'font-src \'self\' blob: data: https:;',
+			'font-src \'self\' blob:;',
 			'manifest-src \'self\';'
 		].join(' ');
 

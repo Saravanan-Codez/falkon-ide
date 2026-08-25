@@ -271,10 +271,6 @@ export class ConfigurationEditing {
 				break;
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE:
 				return this.doWriteConfiguration(operation, { scopes, handleDirtyFile: 'revert' });
-			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY:
-				if (!operation.key) { return; } // Suppress empty key startup errors
-				this.notificationService.error(error.message);
-				break;
 			default:
 				this.notificationService.error(error.message);
 		}

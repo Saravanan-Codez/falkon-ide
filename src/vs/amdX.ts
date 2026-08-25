@@ -201,17 +201,6 @@ class AMDModuleImporter {
 
 const cache = new Map<string, Promise<any>>();
 
-const xtermModules: Record<string, () => Promise<any>> = {
-	'@xterm/xterm': () => import('@xterm/xterm'),
-	'@xterm/addon-clipboard': () => import('@xterm/addon-clipboard'),
-	'@xterm/addon-image': () => import('@xterm/addon-image'),
-	'@xterm/addon-progress': () => import('@xterm/addon-progress'),
-	'@xterm/addon-search': () => import('@xterm/addon-search'),
-	'@xterm/addon-serialize': () => import('@xterm/addon-serialize'),
-	'@xterm/addon-unicode11': () => import('@xterm/addon-unicode11'),
-	'@xterm/addon-webgl': () => import('@xterm/addon-webgl'),
-};
-
 /**
  * Utility for importing an AMD node module. This util supports AMD and ESM contexts and should be used while the ESM adoption
  * is on its way.
@@ -219,15 +208,6 @@ const xtermModules: Record<string, () => Promise<any>> = {
  * e.g. pass in `vscode-textmate/release/main.js`
  */
 export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideNodeModule: string, isBuilt?: boolean): Promise<T> {
-	if (xtermModules[nodeModuleName]) {
-		try {
-			const mod = await xtermModules[nodeModuleName]();
-			return mod as unknown as T;
-		} catch (e) {
-			console.warn(`[amdX] Direct import for ${nodeModuleName} fallback:`, e);
-		}
-	}
-
 	if (isBuilt === undefined) {
 		const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 		isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);

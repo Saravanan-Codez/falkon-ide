@@ -171,7 +171,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.autoUpdateDelay': {
 				type: 'number',
-				default: 2,
+				default: 12,
 				minimum: 0,
 				markdownDescription: localize('extensions.autoUpdateDelay', "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."),
 				scope: ConfigurationScope.APPLICATION,
@@ -902,10 +902,11 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: localize2('InstallFromVSIX', 'Install from VSIX...'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
-				id: MenuId.CommandPalette
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)
 			}, {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)),
 				group: '3_install',
 				order: 1
 			}],
@@ -921,47 +922,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				});
 				if (vsixPaths) {
 					await commandService.executeCommand(INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, vsixPaths);
-				}
-			}
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.installFromOpenVSX',
-			title: localize2('InstallFromOpenVSX', 'Install Extension from Open VSX...'),
-			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette
-			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
-				group: '3_install',
-				order: 2
-			}],
-			run: async (accessor: ServicesAccessor) => {
-				const quickInputService = accessor.get(IQuickInputService);
-				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-				const notificationService = accessor.get(INotificationService);
-
-				const input = await quickInputService.input({
-					title: localize('installOpenVSXTitle', 'Install Extension from Open VSX'),
-					placeHolder: localize('installOpenVSXPlaceholder', 'e.g. golang.Go or publisher.extensionName'),
-					prompt: localize('installOpenVSXPrompt', 'Enter Open VSX Extension ID to download and install directly'),
-					ignoreFocusLost: true
-				});
-
-				if (input && input.trim()) {
-					const extId = input.trim();
-					try {
-						const extensions = await extensionsWorkbenchService.queryGallery({ names: [extId] } as any, CancellationToken.None);
-						if (extensions.firstPage.length > 0) {
-							await extensionsWorkbenchService.install(extensions.firstPage[0]);
-							notificationService.info(localize('openVSXSuccess', "Successfully installed '{0}' from Open VSX.", extId));
-						} else {
-							notificationService.warn(localize('openVSXNotFound', "Extension '{0}' not found on Open VSX.", extId));
-						}
-					} catch (e: any) {
-						notificationService.error(localize('openVSXError', "Failed to install '{0}': {1}", extId, e?.message || String(e)));
-					}
 				}
 			}
 		});

@@ -60,7 +60,6 @@ import { ITimerService } from '../services/timer/browser/timerService.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../services/workspaces/common/workspaceTrust.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { HTMLFileSystemProvider } from '../../platform/files/browser/htmlFileSystemProvider.js';
-import { TauriFileSystemProvider } from '../../platform/files/browser/tauriFileSystemProvider.js';
 import { IOpenerService } from '../../platform/opener/common/opener.js';
 import { mixin, safeStringify } from '../../base/common/objects.js';
 import { IndexedDB } from '../../base/browser/indexedDB.js';
@@ -70,7 +69,7 @@ import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.j
 import { dirname, joinPath } from '../../base/common/resources.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
-import { INativeManagedSettingsService, NullNativeManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsService, INativeManagedSettingsService, NullNativeManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { IRemoteExplorerService } from '../services/remote/common/remoteExplorerService.js';
 import { DisposableTunnel, TunnelProtocol } from '../../platform/tunnel/common/tunnel.js';
 import { ILabelService } from '../../platform/label/common/label.js';
@@ -373,6 +372,7 @@ export class BrowserMain extends Disposable {
 		const policyService = new AccountPolicyService(logService, defaultAccountService);
 		serviceCollection.set(IPolicyService, policyService);
 		serviceCollection.set(IAccountPolicyGateService, policyService);
+		serviceCollection.set(IManagedSettingsService, policyService);
 
 		const configurationService = await this.createWorkspaceAndDependentServices(serviceCollection, workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService, loggerService, remoteAuthorityResolverService, productService);
 
@@ -549,12 +549,8 @@ export class BrowserMain extends Disposable {
 		}
 		fileService.registerProvider(Schemas.vscodeUserData, userDataProvider);
 
-		// Local file access: Tauri native filesystem or browser WebFileSystemAccess
-		if ((globalThis as any).__tauri_fs__ || (mainWindow as any).__tauri_fs__) {
-			const tauriFsProvider = new TauriFileSystemProvider(logService);
-			fileService.registerProvider(Schemas.file, tauriFsProvider);
-			fileService.registerProvider(Schemas.vscodeFileResource, tauriFsProvider);
-		} else if (WebFileSystemAccess.supported(mainWindow)) {
+		// Local file access (if supported by browser)
+		if (WebFileSystemAccess.supported(mainWindow)) {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}
 

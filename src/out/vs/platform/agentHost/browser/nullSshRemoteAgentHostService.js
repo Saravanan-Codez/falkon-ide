@@ -1,0 +1,31 @@
+import { Event } from "../../../base/common/event.js";
+class NullSSHRemoteAgentHostService {
+  constructor() {
+    this.onDidChangeConnections = Event.None;
+    this.onDidReportConnectProgress = Event.None;
+    this.connections = [];
+  }
+  async connect(_config) {
+    throw new Error("SSH connections are not supported in the browser.");
+  }
+  async disconnect(_host) {
+  }
+  async listSSHConfigHosts() {
+    return [];
+  }
+  async ensureUserSSHConfig() {
+    throw new Error("SSH is not supported in the browser.");
+  }
+  async listSSHConfigFiles() {
+    return [];
+  }
+  async resolveSSHConfig(_host) {
+    throw new Error("SSH is not supported in the browser.");
+  }
+  async reconnect(_sshConfigHost, _name) {
+    throw new Error("SSH connections are not supported in the browser.");
+  }
+}
+export {
+  NullSSHRemoteAgentHostService
+};

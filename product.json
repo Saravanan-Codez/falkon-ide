@@ -1,8 +1,8 @@
 {
-	"nameShort": "Falkon IDE",
-	"nameLong": "Falkon IDE",
-	"applicationName": "falkon-ide",
-	"dataFolderName": ".falkon-ide",
+	"nameShort": "Code - OSS",
+	"nameLong": "Code - OSS",
+	"applicationName": "code-oss",
+	"dataFolderName": ".vscode-oss",
 	"sharedDataFolderName": ".vscode-oss-shared",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
@@ -34,14 +34,7 @@
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
 	"urlProtocol": "code-oss",
-	"extensionsGallery": {
-		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
-		"itemUrl": "https://marketplace.visualstudio.com/items",
-		"resourceUrlTemplate": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{name}/{version}/vspackage",
-		"controlUrl": "https://az764295.vo.msecnd.net/extensions/marketplace.json"
-	},
 	"agentsTelemetryAppName": "agents",
-	"builtInExtensionsEnabledWithAutoUpdates": [],
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
 		{
@@ -244,11 +237,5 @@
 		"GitHub.copilot-chat"
 	],
 	"sessionsWindowAllowedExtensions": [],
-	"githubAuthentication": {
-		"clientId": "01ab8ac9400c4e429b23"
-	},
-	"microsoftAuthentication": {
-		"clientId": "a672d62c-fc7b-4e81-a576-e60dc66e951d"
-	},
 	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
 }

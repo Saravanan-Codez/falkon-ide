@@ -95,10 +95,6 @@ export abstract class MenubarControl extends Disposable {
 		this.mainMenuDisposables = this._register(new DisposableStore());
 
 		this.setupMainMenu();
-		this._register(this.mainMenu.onDidChange(() => {
-			this.setupMainMenu();
-			this.doUpdateMenubar(true);
-		}));
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
 
@@ -430,8 +426,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
-		const val = getMenuBarVisibility(this.configurationService);
-		return ((val as any) === 'default' || val === 'compact') ? 'classic' : val;
+		return getMenuBarVisibility(this.configurationService);
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
@@ -776,7 +771,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 	create(parent: HTMLElement): HTMLElement {
 		this.container = parent;
-		this.container.style.display = 'flex';
 
 		// Build the menubar
 		if (this.container) {

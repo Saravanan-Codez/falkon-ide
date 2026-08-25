@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getWindowControlsStyle, WindowControlsStyle, TitlebarStyle, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -16,7 +16,7 @@ import { DisposableStore, IDisposable, MutableDisposable } from '../../../../bas
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from '../../../../base/common/platform.js';
 import { Color } from '../../../../base/common/color.js';
 import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from '../../../../base/browser/dom.js';
 import { CustomMenubarControl } from './menubarControl.js';
@@ -38,8 +38,6 @@ import { AccountsActivityActionViewItem, isAccountsActionVisible, SimpleAccountA
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from '../editor/editorCommands.js';
@@ -56,6 +54,7 @@ import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/ho
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../../actions/menuMotion.js';
@@ -480,14 +479,21 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
-		// App Icon (Windows, Linux, and Desktop)
-		this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
+		// App Icon (Windows, Linux)
+		if ((isWindows || isLinux) && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
+			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
+		}
 
 		// Draggable region that we can manipulate for #52522
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
-		// Menubar: install a custom menu bar
-		if (!this.isAuxiliary) {
+		// Menubar: install a custom menu bar depending on configuration
+		if (
+			!this.isAuxiliary &&
+			!hasNativeMenu(this.configurationService, this.titleBarStyle) &&
+			(!isMacintosh || isWeb) &&
+			this.currentMenubarVisibility !== 'compact'
+		) {
 			this.installMenubar();
 		}
 
@@ -495,7 +501,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
 
-		// Center-Adjacent Toolbar (e.g., update indicator)
+		// Center-Adjacent Toolbar
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const centerAdjacentToolBarElement = append(this.rightContent, $('div.center-adjacent-toolbar-container'));
 			this.centerAdjacentToolBarElement = centerAdjacentToolBarElement;
@@ -509,18 +515,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				hoverDelegate: this.hoverDelegate
 			}));
 
-			// Re-evaluate fit when items change (e.g. the update indicator appears), see #303222.
+			// Re-evaluate fit when items change, see #303222.
 			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
-		// Create Toolbar Actions
-		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
-			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
-			this.createActionToolBar();
-			this.createActionToolBarMenus();
-		}
-
-		// Update Toolbar
+		// Update Toolbar (before the right-aligned toolbar actions)
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const updateToolBarElement = append(this.rightContent, $('div.update-toolbar-container'));
 			this.updateToolBarElement = updateToolBarElement;
@@ -537,90 +536,48 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
 		}
 
-		// Window Controls Container (Minimize, Maximize/Restore, Close)
-		this.windowControlsContainer = append(this.rootContainer, $('div.window-controls-container'));
-		this.windowControlsContainer.style.cssText = 'display: flex !important; flex-direction: row !important; align-items: center !important; height: 100% !important; width: 138px !important; min-width: 138px !important; max-width: 138px !important; flex: 0 0 138px !important; order: 3 !important; -webkit-app-region: no-drag !important; pointer-events: auto !important; position: relative !important; z-index: 10000 !important;';
+		// Create Toolbar Actions
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
+			this.createActionToolBar();
+			this.createActionToolBarMenus();
+		}
 
-		const invokeWinControl = (actionName: string) => {
-			const win = window as any;
-			if (win.__tauri_window__ && typeof win.__tauri_window__[actionName] === 'function') {
-				win.__tauri_window__[actionName]();
-				return;
+		// Window Controls Container
+		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
+			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
+			if (isMacintosh && isNative) {
+
+				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
+				// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
+
+				const localeInfo = safeIntl.Locale(platformLocale).value;
+				const textInfo = (localeInfo as { textInfo?: unknown }).textInfo;
+				if (textInfo && typeof textInfo === 'object' && 'direction' in textInfo && textInfo.direction === 'rtl') {
+					primaryWindowControlsLocation = 'right';
+				}
 			}
-			const cmdMap: Record<string, string> = {
-				minimize: 'window_minimize',
-				toggleMaximize: 'window_toggle_maximize',
-				close: 'window_close'
-			};
-			const cmd = cmdMap[actionName] || actionName;
-			const tauri = win.__TAURI__ || (globalThis as any).__TAURI__;
-			if (tauri?.core?.invoke) {
-				tauri.core.invoke(cmd).catch((err: any) => {
-					console.warn('[WindowControl] IPC failed, trying HTTP fallback:', err);
-					fetch(`/api/window/${actionName}`, { method: 'POST' }).catch(console.error);
-				});
-				return;
-			}
-			if (win.__TAURI_INTERNALS__?.invoke) {
-				win.__TAURI_INTERNALS__.invoke(cmd).catch((err: any) => {
-					console.warn('[WindowControl] IPC failed, trying HTTP fallback:', err);
-					fetch(`/api/window/${actionName}`, { method: 'POST' }).catch(console.error);
-				});
-				return;
-			}
-			// HTTP API Fallback
-			fetch(`/api/window/${actionName}`, { method: 'POST' }).catch(console.error);
-		};
 
-		const bindControl = (element: HTMLElement, actionName: string, hoverBg: string, hoverColor?: string) => {
-			element.style.cssText = 'display: flex !important; justify-content: center !important; align-items: center !important; height: 100% !important; width: 46px !important; min-width: 46px !important; max-width: 46px !important; font-size: 16px !important; color: #cccccc !important; cursor: pointer !important; -webkit-app-region: no-drag !important; pointer-events: auto !important; position: relative !important; z-index: 10001 !important; transition: background-color 0.15s ease, color 0.15s ease; user-select: none !important;';
-			this._register(addDisposableListener(element, EventType.MOUSE_OVER, () => {
-				element.style.backgroundColor = hoverBg;
-				if (hoverColor) element.style.color = hoverColor;
-			}));
-			this._register(addDisposableListener(element, EventType.MOUSE_OUT, () => {
-				element.style.backgroundColor = 'transparent';
-				element.style.color = '#cccccc';
-			}));
-			const handler = (e: any) => {
-				EventHelper.stop(e, true);
-				invokeWinControl(actionName);
-			};
-			this._register(addDisposableListener(element, EventType.CLICK, handler));
-		};
-
-		// Minimize
-		const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize'));
-		minimizeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMinimize));
-		minimizeIcon.title = 'Minimize';
-		bindControl(minimizeIcon, 'minimize', 'rgba(255, 255, 255, 0.1)');
-
-		// Maximize / Restore
-		const maxRestoreIcon = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
-		maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
-		maxRestoreIcon.title = 'Maximize';
-		bindControl(maxRestoreIcon, 'toggleMaximize', 'rgba(255, 255, 255, 0.1)');
-
-		const updateMaxState = () => {
-			const isMax = window.outerWidth >= (screen.availWidth - 15) && window.outerHeight >= (screen.availHeight - 15);
-			if (isMax) {
-				maxRestoreIcon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
-				maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
-				maxRestoreIcon.title = 'Restore';
+			if (isMacintosh && isNative && primaryWindowControlsLocation === 'left') {
+				// macOS native: controls are on the left and the container is not needed to make room
+				// for something, except for web where a custom menu being supported). not putting the
+				// container helps with allowing to move the window when clicking very close to the
+				// window control buttons.
+			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
+				// Linux/Windows: controls are explicitly disabled
 			} else {
-				maxRestoreIcon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
-				maxRestoreIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
-				maxRestoreIcon.title = 'Maximize';
-			}
-		};
-		this._register(addDisposableListener(window, EventType.RESIZE, () => updateMaxState()));
-		updateMaxState();
+				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				if (isWeb) {
+					// Web: its possible to have control overlays on both sides, for example on macOS
+					// with window controls on the left and PWA controls on the right.
+					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
+				}
 
-		// Close
-		const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close'));
-		closeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeClose));
-		closeIcon.title = 'Close';
-		bindControl(closeIcon, 'close', '#e81123', '#ffffff');
+				if (isWCOEnabled()) {
+					this.windowControlsContainer.classList.add('wco-enabled');
+				}
+			}
+		}
 
 		// Context menu over title bar: depending on the OS and the location of the click this will either be
 		// the overall context menu for the entire title bar or a specific title context menu.
@@ -934,8 +891,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			return 'hidden';
 		}
 
-		const val = getMenuBarVisibility(this.configurationService);
-		return ((val as any) === 'default' || val === 'compact') ? 'classic' : val;
+		return getMenuBarVisibility(this.configurationService);
 	}
 
 	private get layoutControlEnabled(): boolean {

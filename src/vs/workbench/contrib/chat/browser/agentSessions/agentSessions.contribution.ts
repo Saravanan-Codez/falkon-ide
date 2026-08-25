@@ -18,14 +18,10 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
 import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissionUiContribution.js';
+import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
 import './agentHost/agentHostModeSynchronizer.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { OpenWorkspaceInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution } from '../../electron-browser/agentSessions/agentSessionsActions.js';
-
-registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
-registerAction2(OpenWorkspaceInAgentsWindowAction);
-registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.AfterRestored);
 
 //#region Actions and Menus
 
@@ -45,6 +41,7 @@ registerAction2(OpenAgentSessionInEditorGroupAction);
 registerAction2(OpenAgentSessionInNewEditorGroupAction);
 registerAction2(RefreshAgentSessionsViewerAction);
 registerAction2(FindAgentSessionInViewerAction);
+registerExternalSessionsFilterMenu(MenuId.AgentSessionsViewerFilterSubMenu, MenuId.AgentSessionsExternalFilterSubMenu, '2_external');
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
 

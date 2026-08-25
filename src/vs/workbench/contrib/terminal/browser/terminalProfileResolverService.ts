@@ -232,11 +232,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		return this._terminalProfileService.getDefaultProfile(os) || {
-			profileName: os === OperatingSystem.Windows ? 'PowerShell' : 'bash',
-			path: os === OperatingSystem.Windows ? 'powershell.exe' : '/bin/bash',
-			isDefault: true
-		};
+		return this._terminalProfileService.getDefaultProfile(os);
 	}
 
 	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
@@ -412,17 +408,18 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 			{
 				getDefaultSystemShell: async (remoteAuthority, os) => {
 					const backend = await terminalInstanceService.getBackend(remoteAuthority);
-					if (backend) {
-						return backend.getDefaultSystemShell(os);
+					if (!remoteAuthority || !backend) {
+						// Just return basic values, this is only for serverless web and wouldn't be used
+						return os === OperatingSystem.Windows ? 'pwsh' : 'bash';
 					}
-					return os === OperatingSystem.Windows ? 'powershell.exe' : '/bin/bash';
+					return backend.getDefaultSystemShell(os);
 				},
 				getEnvironment: async (remoteAuthority) => {
 					const backend = await terminalInstanceService.getBackend(remoteAuthority);
-					if (backend) {
-						return backend.getEnvironment();
+					if (!remoteAuthority || !backend) {
+						return env;
 					}
-					return env;
+					return backend.getEnvironment();
 				}
 			},
 			configurationService,

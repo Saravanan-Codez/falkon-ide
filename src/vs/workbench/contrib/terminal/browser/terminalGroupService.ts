@@ -186,13 +186,23 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
-		const pane = await this._viewsService.openView(TERMINAL_VIEW_ID, focus ?? true);
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
+			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 		pane?.setExpanded(true);
 
-		await timeout(0);
-		const instance = this.activeInstance;
-		if (instance) {
-			await instance.focusWhenReady(true);
+		if (focus) {
+			// Do the focus call asynchronously as going through the
+			// command palette will force editor focus
+			await timeout(0);
+			const instance = this.activeInstance;
+			if (instance) {
+				// HACK: Ensure the panel is still visible at this point as there may have been
+				// a request since it was opened to show a different panel
+				if (pane && !pane.isVisible()) {
+					await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
+				}
+				await instance.focusWhenReady(true);
+			}
 		}
 		this._onDidShow.fire();
 	}

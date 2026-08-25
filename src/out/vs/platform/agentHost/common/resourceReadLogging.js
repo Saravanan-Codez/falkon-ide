@@ -1,0 +1,23 @@
+import { Schemas } from "../../../base/common/network.js";
+import { hasKey } from "../../../base/common/types.js";
+import { URI } from "../../../base/common/uri.js";
+function isFileResourceRead(method, params) {
+  if (method !== "resourceRead" || !hasUriParam(params)) {
+    return false;
+  }
+  const uri = params.uri;
+  if (typeof uri !== "string") {
+    return false;
+  }
+  try {
+    return URI.parse(uri).scheme === Schemas.file;
+  } catch {
+    return false;
+  }
+}
+function hasUriParam(params) {
+  return typeof params === "object" && params !== null && hasKey(params, { uri: true });
+}
+export {
+  isFileResourceRead
+};

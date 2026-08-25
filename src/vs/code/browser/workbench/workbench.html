@@ -27,20 +27,9 @@
 		<link rel="manifest" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/manifest.json" crossorigin="use-credentials" />
 		<link rel="stylesheet" href="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.css">
 
-		<style>
-			html, body {
-				width: 100%;
-				height: 100%;
-				margin: 0;
-				padding: 0;
-				overflow: hidden;
-				background-color: #181818 !important;
-				color: #cccccc;
-			}
-		</style>
 	</head>
 
-	<body class="vs-dark" aria-label="">
+	<body aria-label="">
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
@@ -53,6 +42,7 @@
 	</script>
 	<!-- always ensure built in english NLS messages -->
 	<script type="module" src="{{WORKBENCH_NLS_FALLBACK_URL}}"></script>
-	<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/js/tauri-shim.js"></script>
+	<!-- attempt to load NLS messages in case non-english -->
+	<script type="module" src="{{WORKBENCH_NLS_URL}}"></script>
 	<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>
 </html>
