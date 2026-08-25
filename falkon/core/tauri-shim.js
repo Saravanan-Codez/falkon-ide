@@ -198,8 +198,7 @@ window.electronAPI = {
       case 'git-branch': return window.__tauri_git__.branch(args[0]);
       case 'git-status': return window.__tauri_git__.status(args[0]);
       case 'git-is-repo': return window.__tauri_git__.isRepo(args[0]);
-      case 'run-falkon':
-      case 'run-cimple': return invoke('run_falkon', { entry: args[0] || '', options: args[1] || {} });
+      case 'run-falkon': return invoke('run_falkon', { entry: args[0] || '', options: args[1] || {} });
       default:
         console.warn(`[electronAPI] Unknown channel: ${channel}`);
         return null;

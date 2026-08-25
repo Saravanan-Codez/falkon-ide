@@ -1,6 +1,6 @@
 {
-  "name": "code-oss-dev",
-  "version": "1.136.0",
+  "name": "falkon-ide",
+  "version": "1.134.0",
   "distro": "406e12a29f51487d7c905069d25636a6e641097a",
   "author": {
     "name": "Microsoft Corporation"
@@ -10,6 +10,16 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "dev": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js dev",
+    "build": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build",
+    "build:msi": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles msi",
+    "build:nsis": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles nsis",
+    "build:dmg": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles dmg",
+    "build:deb": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles deb",
+    "build:appimage": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles appimage",
+    "bundle-vs": "node build/build-all-extensions.mjs && node falkon/build/bundle-vscode.js",
+    "patch": "node falkon/patcher/patch-upstream.js",
+    "unit-test": "node falkon/build/run-tauri.js test",
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",

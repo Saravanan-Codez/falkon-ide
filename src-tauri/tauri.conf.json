@@ -4,8 +4,8 @@
   "version": "1.134.0",
   "identifier": "com.falkon.ide",
   "build": {
-    "beforeBuildCommand": "node bundle-vscode-tauri.js",
-    "beforeDevCommand": "node bundle-vscode-tauri.js",
+    "beforeBuildCommand": "node falkon/build/bundle-vscode.js",
+    "beforeDevCommand": "node falkon/build/bundle-vscode.js",
     "frontendDist": "../dist"
   },
   "app": {

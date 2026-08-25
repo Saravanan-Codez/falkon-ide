@@ -159,7 +159,6 @@ fn main() {
             marketplace_proxy,
             // Runners
             run_falkon,
-            run_cimple,
             // Extension Host sidecar
             ext_host_start,
             ext_host_stop,
