@@ -256,12 +256,15 @@ pub async fn open_folder_dialog(
 }
 
 #[tauri::command]
-pub async fn open_file_dialog() -> Option<String> {
-    rfd::AsyncFileDialog::new()
-        .set_title("Open File")
-        .pick_file()
-        .await
-        .map(|f| f.path().to_string_lossy().to_string())
+pub async fn open_file_dialog(filters: Option<Vec<String>>) -> Option<String> {
+    let mut dialog = rfd::AsyncFileDialog::new().set_title("Open File");
+    if let Some(ref flts) = filters {
+        let refs: Vec<&str> = flts.iter().map(|s| s.as_str()).collect();
+        if !refs.is_empty() {
+            dialog = dialog.add_filter("Files", &refs);
+        }
+    }
+    dialog.pick_file().await.map(|f| f.path().to_string_lossy().to_string())
 }
 
 #[tauri::command]

@@ -82,7 +82,7 @@ impl MarketplaceService {
             client.get(&final_url)
         };
 
-        req = req.header("User-Agent", "VSCode/1.133.0");
+        req = req.header("User-Agent", "VSCode/1.136.0");
         req = req.header("Accept", "application/json;api-version=6.0-preview.1;excludeMetaData=true");
         if is_post {
             req = req.header("Content-Type", "application/json");

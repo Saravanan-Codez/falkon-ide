@@ -230,4 +230,4 @@ export class TauriTerminalContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Ready);
+	.registerWorkbenchContribution(TauriTerminalContribution, LifecyclePhase.Restored);

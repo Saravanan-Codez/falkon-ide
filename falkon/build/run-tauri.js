@@ -89,7 +89,7 @@ if (process.platform === 'linux') {
 const isWin = process.platform === 'win32';
 const isLinux = process.platform === 'linux';
 
-const tauriArgs = ['tauri', action, ...extraArgs];
+const tauriArgs = [action, ...extraArgs];
 
 // On Linux, default build targets to deb,rpm if not explicitly specified
 if (action === 'build' && isLinux && !extraArgs.some(a => a === '--bundles' || a === '-b')) {
@@ -136,6 +136,7 @@ if (existsSync(serverEntryPoint)) {
 
 const rootDir = join(__dirname, '../../');
 const srcTauriDir = join(__dirname, '../../src-tauri');
+const localTauriCli = join(rootDir, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 
 let child;
 if (action === 'test') {
@@ -150,15 +151,22 @@ if (action === 'test') {
   } else {
     child = spawn('cargo', ['test'], { cwd: srcTauriDir, stdio: 'inherit', env });
   }
+} else if (existsSync(localTauriCli)) {
+  child = spawn(process.execPath, [localTauriCli, ...tauriArgs], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env,
+    shell: isWin
+  });
 } else if (isWin) {
-  child = spawn('npx.cmd', tauriArgs, {
+  child = spawn('npx.cmd', ['--yes', '@tauri-apps/cli', ...tauriArgs], {
     cwd: rootDir,
     stdio: 'inherit',
     env,
     shell: true
   });
 } else {
-  child = spawn('npx', tauriArgs, { cwd: rootDir, stdio: 'inherit', env });
+  child = spawn('npx', ['--yes', '@tauri-apps/cli', ...tauriArgs], { cwd: rootDir, stdio: 'inherit', env });
 }
 
 child.on('exit', (code) => {

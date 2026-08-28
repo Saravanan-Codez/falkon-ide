@@ -6,7 +6,6 @@
 import { ShutdownReason, ILifecycleService, StartupKind } from '../common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractLifecycleService } from '../common/lifecycleService.js';
-import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
@@ -62,9 +61,8 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		}
 	}
 
-	private vetoBeforeUnload(event: BeforeUnloadEvent): void {
-		event.preventDefault();
-		event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
+	private vetoBeforeUnload(_event: BeforeUnloadEvent): void {
+		// Falkon/Tauri: suppressed — browser "Leave site?" dialogs freeze the native window
 	}
 
 	withExpectedShutdown(reason: ShutdownReason): Promise<void>;

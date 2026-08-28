@@ -54,25 +54,9 @@ pub async fn terminal_create(
 
         let mut cmd = CommandBuilder::new(&shell);
         if let Some(ref c) = cwd {
-            let mut stripped = c.as_str();
-            if let Some(pos) = stripped.find("://") {
-                let rest = &stripped[pos + 3..];
-                if let Some(path_start) = rest.find('/') {
-                    stripped = &rest[path_start..];
-                }
-            }
-            let stripped = stripped
-                .trim_start_matches("file:///")
-                .trim_start_matches("file://");
-
-            #[cfg(windows)]
-            let clean = stripped.trim_start_matches('/').replace('/', "\\");
-            #[cfg(not(windows))]
-            let clean = stripped.to_string();
-
-            let p = Path::new(&clean);
-            if p.exists() && p.is_dir() {
-                cmd.cwd(&clean);
+            let clean_path = crate::services::security::SecurityService::clean_path_input(c);
+            if clean_path.exists() && clean_path.is_dir() {
+                cmd.cwd(clean_path);
             } else if let Ok(current) = std::env::current_dir() {
                 cmd.cwd(current);
             }

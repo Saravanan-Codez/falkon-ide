@@ -22,12 +22,23 @@ pub async fn search_text(
         let project_rg = Path::new("out").join("node_modules").join("@vscode").join("ripgrep").join("bin").join(rg_bin_name);
         let root_rg = Path::new("node_modules").join("@vscode").join("ripgrep").join("bin").join(rg_bin_name);
 
+        let exe_rg = std::env::current_exe().ok().and_then(|p| {
+            p.parent().map(|d| d.join("bin").join(rg_bin_name))
+        });
+        let exe_res_rg = std::env::current_exe().ok().and_then(|p| {
+            p.parent().map(|d| d.join("resources").join("bin").join(rg_bin_name))
+        });
+
         let rg_cmd_path = if node_modules_rg.exists() {
             node_modules_rg.to_string_lossy().to_string()
         } else if project_rg.exists() {
             project_rg.to_string_lossy().to_string()
         } else if root_rg.exists() {
             root_rg.to_string_lossy().to_string()
+        } else if let Some(ref p) = exe_rg.filter(|p| p.exists()) {
+            p.to_string_lossy().to_string()
+        } else if let Some(ref p) = exe_res_rg.filter(|p| p.exists()) {
+            p.to_string_lossy().to_string()
         } else {
             rg_bin_name.to_string()
         };

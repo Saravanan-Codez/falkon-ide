@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isStandalone } from '../../../base/browser/browser.js';
 import { addDisposableListener } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { VSBuffer, decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
@@ -497,19 +496,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		const targetHref = this.createTargetUrl(workspace, options);
 		if (targetHref) {
-			if (options?.reuse) {
-				mainWindow.location.href = targetHref;
-				return true;
-			} else {
-				let result;
-				if (isStandalone()) {
-					result = mainWindow.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
-				} else {
-					result = mainWindow.open(targetHref);
-				}
-
-				return !!result;
-			}
+			mainWindow.location.href = targetHref;
+			return true;
 		}
 
 		return false;
@@ -616,9 +604,32 @@ function readCookie(name: string): string | undefined {
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
-	create(mainWindow.document.body, {
+	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
 		...config,
-		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
+		configurationDefaults: {
+			'workbench.colorTheme': 'Default Dark Modern',
+			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
+			'workbench.iconTheme': 'vs-seti',
+			'window.titleBarStyle': 'native',
+			'window.customTitleBarVisibility': 'never',
+			'window.dialogStyle': 'custom',
+			'window.menuBarVisibility': 'classic',
+			'window.commandCenter': true,
+			'workbench.navigationControl.enabled': true,
+			'workbench.layoutControl.enabled': true,
+			'workbench.tree.renderIndentGuides': 'always',
+			'security.workspace.trust.enabled': false,
+			'git.enabled': true,
+			'git.path': 'git',
+			'git.autoRepositoryDetection': true,
+			'workbench.colorCustomizations': {
+				'statusBar.background': '#181818',
+				'statusBar.noFolderBackground': '#181818',
+				'statusBar.debuggingBackground': '#181818',
+				'statusBar.border': '#2b2b2b'
+			},
+			...config.configurationDefaults
+		},
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),

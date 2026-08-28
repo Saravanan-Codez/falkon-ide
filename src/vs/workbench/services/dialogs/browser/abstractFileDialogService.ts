@@ -249,6 +249,17 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickFileAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<void> {
+		if ((window as any).__tauri_dialogs__) {
+			const filePath = await (window as any).__tauri_dialogs__.openFile();
+			if (filePath && typeof filePath === 'string') {
+				const norm = filePath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				this.addFileToRecentlyOpened(fileUri);
+				await this.editorService.openEditors([{ resource: fileUri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+				return;
+			}
+			return;
+		}
 		const title = nls.localize('openFile.title', 'Open File');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
 
@@ -270,6 +281,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
+		if ((window as any).__tauri_dialogs__) {
+			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
+			if (folderPath && typeof folderPath === 'string') {
+				const fileUri = URI.file(folderPath);
+				return this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow });
+			}
+			return;
+		}
 		const title = nls.localize('openFolder.title', 'Open Folder');
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
 
@@ -293,6 +312,17 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickFileToSaveSimplified(schema: string, options: ISaveDialogOptions): Promise<URI | undefined> {
+		if ((window as any).__tauri_dialogs__) {
+			const defaultName = options.defaultUri ? options.defaultUri.path.split('/').pop() : undefined;
+			const filePath = await (window as any).__tauri_dialogs__.saveFile(defaultName);
+			if (filePath && typeof filePath === 'string') {
+				const norm = filePath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				this.addFileToRecentlyOpened(fileUri);
+				return fileUri;
+			}
+			return undefined;
+		}
 		if (!options.availableFileSystems) {
 			options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
 		}

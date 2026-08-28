@@ -11,10 +11,86 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { EventEmitter } = require('events');
 
 const PORT = parseInt(process.env.PORT || '9889', 10);
 const HOST = '127.0.0.1';
+const WS_MAGIC_STRING = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+
+function encodeWebSocketFrame(data) {
+  const isBuffer = Buffer.isBuffer(data);
+  const payload = isBuffer ? data : Buffer.from(String(data), 'utf8');
+  const payloadLength = payload.length;
+
+  let header;
+  if (payloadLength < 126) {
+    header = Buffer.alloc(2);
+    header[0] = 0x81; // FIN + text opcode (or 0x82 if binary)
+    if (isBuffer) header[0] = 0x82;
+    header[1] = payloadLength;
+  } else if (payloadLength < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = isBuffer ? 0x82 : 0x81;
+    header[1] = 126;
+    header.writeUInt16BE(payloadLength, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = isBuffer ? 0x82 : 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(payloadLength), 2);
+  }
+
+  return Buffer.concat([header, payload]);
+}
+
+function decodeWebSocketFrame(buffer) {
+  if (buffer.length < 2) return null;
+
+  const firstByte = buffer[0];
+  const secondByte = buffer[1];
+  const opcode = firstByte & 0x0f;
+  const isMasked = (secondByte & 0x80) === 0x80;
+  let payloadLength = secondByte & 0x7f;
+  let currentOffset = 2;
+
+  if (payloadLength === 126) {
+    if (buffer.length < currentOffset + 2) return null;
+    payloadLength = buffer.readUInt16BE(currentOffset);
+    currentOffset += 2;
+  } else if (payloadLength === 127) {
+    if (buffer.length < currentOffset + 8) return null;
+    payloadLength = Number(buffer.readBigUInt64BE(currentOffset));
+    currentOffset += 8;
+  }
+
+  let maskingKey = null;
+  if (isMasked) {
+    if (buffer.length < currentOffset + 4) return null;
+    maskingKey = buffer.slice(currentOffset, currentOffset + 4);
+    currentOffset += 4;
+  }
+
+  if (buffer.length < currentOffset + payloadLength) return null;
+
+  const payload = buffer.slice(currentOffset, currentOffset + payloadLength);
+  const totalFrameSize = currentOffset + payloadLength;
+
+  let unmaskedData = Buffer.alloc(payloadLength);
+  if (isMasked && maskingKey) {
+    for (let i = 0; i < payloadLength; i++) {
+      unmaskedData[i] = payload[i] ^ maskingKey[i % 4];
+    }
+  } else {
+    unmaskedData = payload;
+  }
+
+  return {
+    opcode,
+    data: unmaskedData,
+    frameLength: totalFrameSize,
+  };
+}
 
 class ExtensionHostBridge extends EventEmitter {
   constructor() {
@@ -24,25 +100,52 @@ class ExtensionHostBridge extends EventEmitter {
   }
 
   handleConnection(req, socket, head) {
-    // Basic HTTP upgrade / raw socket communication bridge
-    socket.write(
-      'HTTP/1.1 101 Switching Protocols\r\n' +
-      'Upgrade: websocket\r\n' +
-      'Connection: Upgrade\r\n' +
-      '\r\n'
-    );
+    const secKey = req.headers['sec-websocket-key'];
+    if (!secKey) {
+      socket.destroy();
+      return;
+    }
 
+    const acceptKey = crypto
+      .createHash('sha1')
+      .update(secKey + WS_MAGIC_STRING)
+      .digest('base64');
+
+    const headers = [
+      'HTTP/1.1 101 Switching Protocols',
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      `Sec-WebSocket-Accept: ${acceptKey}`,
+      '\r\n'
+    ];
+
+    socket.write(headers.join('\r\n'));
     this.clients.add(socket);
     console.log(`[ExtHost] Client connected (${this.clients.size} total)`);
 
+    let buffer = Buffer.alloc(0);
+
     socket.on('data', (chunk) => {
-      // Decode framed data / JSON messages from client
-      try {
-        const str = chunk.toString('utf8');
-        // Handle websocket unmasking or raw JSON framing
-        this.processMessage(socket, str);
-      } catch (err) {
-        console.error('[ExtHost] Error processing message:', err.message);
+      buffer = Buffer.concat([buffer, chunk]);
+      while (buffer.length > 0) {
+        const frame = decodeWebSocketFrame(buffer);
+        if (!frame) break;
+
+        buffer = buffer.slice(frame.frameLength);
+
+        if (frame.opcode === 0x8) {
+          // Close frame
+          socket.end();
+          break;
+        } else if (frame.opcode === 0x9) {
+          // Ping frame -> reply with Pong (opcode 0xA)
+          const pongHeader = Buffer.from([0x8a, 0x00]);
+          socket.write(pongHeader);
+        } else if (frame.opcode === 0x1 || frame.opcode === 0x2) {
+          // Text / binary frame
+          const str = frame.data.toString('utf8');
+          this.processMessage(socket, str);
+        }
       }
     });
 
@@ -58,24 +161,25 @@ class ExtensionHostBridge extends EventEmitter {
   }
 
   processMessage(socket, raw) {
-    // Basic RPC dispatcher for extension host requests
     if (raw.includes('"type":"ping"')) {
-      socket.write(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+      const pong = JSON.stringify({ type: 'pong', timestamp: Date.now() });
+      socket.write(encodeWebSocketFrame(pong));
       return;
     }
 
     if (raw.includes('"type":"ext-host-init"')) {
       console.log('[ExtHost] Received initialization payload');
-      socket.write(JSON.stringify({ type: 'ext-host-initialized', status: 'ok' }));
+      const ack = JSON.stringify({ type: 'ext-host-initialized', status: 'ok' });
+      socket.write(encodeWebSocketFrame(ack));
       return;
     }
   }
 
   sendToAll(data) {
-    const payload = typeof data === 'string' ? data : JSON.stringify(data);
+    const frame = encodeWebSocketFrame(typeof data === 'string' ? data : JSON.stringify(data));
     for (const client of this.clients) {
       try {
-        client.write(payload);
+        client.write(frame);
       } catch (_) {}
     }
   }

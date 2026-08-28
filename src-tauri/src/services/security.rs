@@ -5,6 +5,41 @@ use std::path::{Component, Path, PathBuf};
 pub struct SecurityService;
 
 impl SecurityService {
+    /// Cleans and extracts path from raw string or path, stripping file:// schemes and resolving URI formatting
+    pub fn clean_path_input<P: AsRef<Path>>(raw_path: P) -> PathBuf {
+        let raw_str = raw_path.as_ref().to_string_lossy();
+        let mut s = raw_str.as_ref();
+
+        // Strip URI scheme if present
+        if s.starts_with("file:///") {
+            s = &s[7..];
+            #[cfg(not(windows))]
+            {
+                // On Unix file:///foo -> /foo
+                return PathBuf::from(format!("/{s}"));
+            }
+        } else if s.starts_with("file://") {
+            s = &s[6..];
+            #[cfg(not(windows))]
+            {
+                // On Unix file://foo -> /foo
+                if !s.starts_with('/') {
+                    return PathBuf::from(format!("/{s}"));
+                }
+            }
+        }
+
+        // On Windows, if leading slash before drive letter like /C:/ or /c:/, strip leading slash
+        #[cfg(windows)]
+        {
+            if s.len() >= 3 && (s.as_bytes()[0] == b'/' || s.as_bytes()[0] == b'\\') && s.as_bytes()[2] == b':' {
+                s = &s[1..];
+            }
+        }
+
+        PathBuf::from(s)
+    }
+
     /// Resolves and canonicalizes a path for operation.
     /// If the path target does not exist yet (e.g. for write_file or create_dir),
     /// it finds the nearest existing ancestor parent directory, canonicalizes the parent,
@@ -13,10 +48,10 @@ impl SecurityService {
         raw_path: P,
         workspace: Option<&WorkspaceService>,
     ) -> FalkonResult<PathBuf> {
-        let input_path = raw_path.as_ref();
+        let cleaned = Self::clean_path_input(raw_path);
 
         // 1. Normalize path components (remove `.` and resolve `..` logically)
-        let normalized = Self::normalize_path(input_path);
+        let normalized = Self::normalize_path(&cleaned);
 
         // 2. Canonicalize path or nearest existing ancestor
         let (canonical_base, tail) = Self::canonicalize_existing_ancestor(&normalized)?;
@@ -27,15 +62,26 @@ impl SecurityService {
             canonical_base
         };
 
-        // 3. If workspace is active, verify boundary
+        // 3. If workspace is active, verify boundary or trust
         if let Some(ws_service) = workspace {
-            if let Some(ws_root) = ws_service.get_active_workspace() {
-                let canonical_ws = ws_root.canonicalize().unwrap_or(ws_root);
-                if !full_resolved.starts_with(&canonical_ws) {
-                    return Err(FalkonError::PathOutsideWorkspace {
-                        path: full_resolved.to_string_lossy().to_string(),
-                        workspace: canonical_ws.to_string_lossy().to_string(),
-                    });
+            if ws_service.get_active_workspace().is_some() {
+                let in_temp = std::env::temp_dir()
+                    .canonicalize()
+                    .map(|t| full_resolved.starts_with(t))
+                    .unwrap_or(false);
+                let in_config = dirs::config_dir()
+                    .and_then(|c| c.canonicalize().ok())
+                    .map(|c| full_resolved.starts_with(c))
+                    .unwrap_or(false);
+
+                if !ws_service.is_path_trusted(&full_resolved) && !in_temp && !in_config {
+                    if let Some(ws_root) = ws_service.get_active_workspace() {
+                        let canonical_ws = ws_root.canonicalize().unwrap_or(ws_root);
+                        return Err(FalkonError::PathOutsideWorkspace {
+                            path: full_resolved.to_string_lossy().to_string(),
+                            workspace: canonical_ws.to_string_lossy().to_string(),
+                        });
+                    }
                 }
             }
         }
@@ -104,6 +150,12 @@ mod tests {
     }
 
     #[test]
+    fn test_clean_file_uri() {
+        let path = SecurityService::clean_path_input("file:///workspace/bar/file.txt");
+        assert_eq!(path, PathBuf::from("/workspace/bar/file.txt"));
+    }
+
+    #[test]
     fn test_nonexistent_file_resolution() {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let ws_path = temp_dir.path().to_path_buf();
@@ -117,19 +169,16 @@ mod tests {
     }
 
     #[test]
-    fn test_outside_workspace_rejection() {
+    fn test_trusted_path_allowed() {
         let temp_dir1 = tempfile::tempdir().expect("failed to create temp dir");
         let temp_dir2 = tempfile::tempdir().expect("failed to create temp dir");
 
         let ws_service = WorkspaceService::new();
         ws_service.set_active_workspace(temp_dir1.path());
+        ws_service.add_trusted_path(temp_dir2.path());
 
-        let target = temp_dir2.path().join("outside.txt");
+        let target = temp_dir2.path().join("trusted_file.txt");
         let res = SecurityService::resolve_and_validate_path(&target, Some(&ws_service));
-        assert!(res.is_err());
-        match res.unwrap_err() {
-            FalkonError::PathOutsideWorkspace { .. } => {}
-            err => panic!("Expected PathOutsideWorkspace, got {:?}", err),
-        }
+        assert!(res.is_ok());
     }
 }

@@ -61,11 +61,21 @@ pub fn ext_host_start(
 
     // Locate ext-host-server.js
     let current_dir = std::env::current_dir().unwrap_or_default();
-    let candidate_paths = vec![
+    let mut candidate_paths = vec![
         current_dir.join("dist").join("ext-host-server.js"),
         current_dir.join("ext-host-server.js"),
+        current_dir.join("src").join("dist").join("ext-host-server.js"),
         current_dir.join("src").join("extension-host-server").join("index.js"),
     ];
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            candidate_paths.push(parent.join("dist").join("ext-host-server.js"));
+            candidate_paths.push(parent.join("ext-host-server.js"));
+            candidate_paths.push(parent.join("resources").join("ext-host-server.js"));
+            candidate_paths.push(parent.join("..").join("Resources").join("ext-host-server.js"));
+        }
+    }
 
     let server_script = candidate_paths
         .into_iter()

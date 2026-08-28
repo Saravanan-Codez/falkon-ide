@@ -26,11 +26,13 @@ pub fn process_spawn(
     app: AppHandle,
     state: State<'_, ProcessManagerState>,
     command: String,
-    args: Vec<String>,
+    args: Option<Vec<String>>,
     cwd: Option<String>,
 ) -> Result<serde_json::Value, FalkonError> {
     let mut cmd = Command::new(&command);
-    cmd.args(&args);
+    if let Some(ref a) = args {
+        cmd.args(a);
+    }
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

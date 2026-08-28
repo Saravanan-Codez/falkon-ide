@@ -22,17 +22,26 @@ fn git_cmd(args: &[&str], cwd: &str) -> FalkonResult<String> {
     }
 }
 
+fn resolve_git_dir(
+    cwd: Option<String>,
+    workspace_service: &WorkspaceService,
+) -> Result<std::path::PathBuf, FalkonError> {
+    match cwd {
+        Some(ref c) if !c.trim().is_empty() => {
+            SecurityService::resolve_and_validate_path(c, Some(workspace_service))
+        }
+        _ => workspace_service
+            .get_active_workspace()
+            .ok_or(FalkonError::WorkspaceNotConfigured),
+    }
+}
+
 #[tauri::command]
 pub async fn git_branch(
     workspace_service: tauri::State<'_, WorkspaceService>,
     cwd: Option<String>,
 ) -> Result<String, FalkonError> {
-    let dir = match cwd {
-        Some(ref c) => SecurityService::resolve_and_validate_path(c, Some(&*workspace_service))?,
-        None => workspace_service
-            .get_active_workspace()
-            .ok_or(FalkonError::WorkspaceNotConfigured)?,
-    };
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         git_cmd(&["rev-parse", "--abbrev-ref", "HEAD"], &dir.to_string_lossy())
     })
@@ -45,12 +54,7 @@ pub async fn git_status(
     workspace_service: tauri::State<'_, WorkspaceService>,
     cwd: Option<String>,
 ) -> Result<serde_json::Value, FalkonError> {
-    let dir = match cwd {
-        Some(ref c) => SecurityService::resolve_and_validate_path(c, Some(&*workspace_service))?,
-        None => workspace_service
-            .get_active_workspace()
-            .ok_or(FalkonError::WorkspaceNotConfigured)?,
-    };
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         let raw = git_cmd(&["status", "--porcelain=v1"], &dir.to_string_lossy())?;
         let files: Vec<serde_json::Value> = raw
@@ -77,12 +81,7 @@ pub async fn git_is_repo(
     workspace_service: tauri::State<'_, WorkspaceService>,
     cwd: Option<String>,
 ) -> Result<bool, FalkonError> {
-    let dir = match cwd {
-        Some(ref c) => SecurityService::resolve_and_validate_path(c, Some(&*workspace_service))?,
-        None => workspace_service
-            .get_active_workspace()
-            .ok_or(FalkonError::WorkspaceNotConfigured)?,
-    };
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         Ok(git_cmd(&["rev-parse", "--is-inside-work-tree"], &dir.to_string_lossy()).is_ok())
     })
@@ -93,10 +92,10 @@ pub async fn git_is_repo(
 #[tauri::command]
 pub async fn git_log(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
     max: Option<usize>,
 ) -> Result<serde_json::Value, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         let n = max.unwrap_or(50).to_string();
         let raw = git_cmd(
@@ -128,10 +127,10 @@ pub async fn git_log(
 #[tauri::command]
 pub async fn git_diff(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
     staged: Option<bool>,
 ) -> Result<String, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         if staged.unwrap_or(false) {
             git_cmd(&["diff", "--cached"], &dir.to_string_lossy())
@@ -146,10 +145,10 @@ pub async fn git_diff(
 #[tauri::command]
 pub async fn git_stage(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
     path: String,
 ) -> Result<bool, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         git_cmd(&["add", &path], &dir.to_string_lossy()).map(|_| true)
     })
@@ -160,10 +159,10 @@ pub async fn git_stage(
 #[tauri::command]
 pub async fn git_unstage(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
     path: String,
 ) -> Result<bool, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         git_cmd(&["reset", "HEAD", "--", &path], &dir.to_string_lossy()).map(|_| true)
     })
@@ -174,10 +173,10 @@ pub async fn git_unstage(
 #[tauri::command]
 pub async fn git_commit(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
     message: String,
 ) -> Result<bool, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         git_cmd(&["commit", "-m", &message], &dir.to_string_lossy()).map(|_| true)
     })
@@ -188,9 +187,9 @@ pub async fn git_commit(
 #[tauri::command]
 pub async fn git_push(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
 ) -> Result<String, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || git_cmd(&["push"], &dir.to_string_lossy()))
         .await
         .map_err(|e| FalkonError::GitError { message: e.to_string() })?
@@ -199,9 +198,9 @@ pub async fn git_push(
 #[tauri::command]
 pub async fn git_pull(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
 ) -> Result<String, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || git_cmd(&["pull"], &dir.to_string_lossy()))
         .await
         .map_err(|e| FalkonError::GitError { message: e.to_string() })?
@@ -210,11 +209,11 @@ pub async fn git_pull(
 #[tauri::command]
 pub async fn git_checkout(
     workspace_service: tauri::State<'_, WorkspaceService>,
-    cwd: String,
+    cwd: Option<String>,
     branch: String,
     create: Option<bool>,
 ) -> Result<bool, FalkonError> {
-    let dir = SecurityService::resolve_and_validate_path(&cwd, Some(&*workspace_service))?;
+    let dir = resolve_git_dir(cwd, &*workspace_service)?;
     tokio::task::spawn_blocking(move || {
         if create.unwrap_or(false) {
             git_cmd(&["checkout", "-b", &branch], &dir.to_string_lossy()).map(|_| true)

@@ -51,17 +51,6 @@ window.__tauri_dialogs__ = {
   },
   openFile: async (filters) => {
     const res = await invoke('open_file_dialog', { filters: filters ?? [] });
-    if (res && typeof res === 'string') {
-      const norm = res.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-      const fileUri = 'file://' + norm;
-      const payload = JSON.stringify([['openFile', fileUri]]);
-      const currentFolder = new URLSearchParams(window.location.search).get('folder');
-      let target = window.location.origin + window.location.pathname + '?payload=' + encodeURIComponent(payload);
-      if (currentFolder) {
-        target += '&folder=' + encodeURIComponent(currentFolder);
-      }
-      window.location.href = target;
-    }
     return res;
   },
   saveFile: (defaultName) => invoke('save_file_dialog', { defaultName: defaultName ?? null }),
@@ -325,11 +314,18 @@ window.XMLHttpRequest = function() {
 
     proxyMarketplaceRequest(_url, _method, _requestHeaders, body)
       .then(text => {
-        Object.defineProperty(xhr, 'status', { get: () => 200, configurable: true });
-        Object.defineProperty(xhr, 'statusText', { get: () => 'OK', configurable: true });
-        Object.defineProperty(xhr, 'readyState', { get: () => 4, configurable: true });
-        Object.defineProperty(xhr, 'responseText', { get: () => text, configurable: true });
-        Object.defineProperty(xhr, 'response', { get: () => text, configurable: true });
+        const defProp = (prop, val) => {
+          try {
+            Object.defineProperty(xhr, prop, { get: () => val, configurable: true });
+          } catch (_) {
+            try { xhr[prop] = val; } catch (_) {}
+          }
+        };
+        defProp('status', 200);
+        defProp('statusText', 'OK');
+        defProp('readyState', 4);
+        defProp('responseText', text);
+        defProp('response', text);
         xhr.getAllResponseHeaders = () => 'content-type: application/json\r\n';
         xhr.getResponseHeader = (name) => {
           if (name && name.toLowerCase() === 'content-type') return 'application/json';
@@ -343,9 +339,16 @@ window.XMLHttpRequest = function() {
       })
       .catch(err => {
         console.warn('[Falkon XHR Proxy] Proxy error:', err);
-        Object.defineProperty(xhr, 'status', { get: () => 500, configurable: true });
-        Object.defineProperty(xhr, 'statusText', { get: () => 'Internal Server Error', configurable: true });
-        Object.defineProperty(xhr, 'readyState', { get: () => 4, configurable: true });
+        const defProp = (prop, val) => {
+          try {
+            Object.defineProperty(xhr, prop, { get: () => val, configurable: true });
+          } catch (_) {
+            try { xhr[prop] = val; } catch (_) {}
+          }
+        };
+        defProp('status', 500);
+        defProp('statusText', 'Internal Server Error');
+        defProp('readyState', 4);
         if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
         if (typeof xhr.onerror === 'function') xhr.onerror();
         xhr.dispatchEvent(new Event('readystatechange'));
@@ -409,41 +412,31 @@ window.fetch = async function(resource, init) {
 // Extension Host & LSP IPC Helpers
 // ─────────────────────────────────────────────
 window.__falkon_ext_host__ = {
-  start: (nodePath) => invoke('ext_host_start', { nodePath }),
+  start: (nodePath) => invoke('ext_host_start', { nodePath: nodePath ?? null }),
   stop: () => invoke('ext_host_stop'),
   status: () => invoke('ext_host_status'),
-  restart: (nodePath) => invoke('ext_host_restart', { nodePath }),
+  restart: (nodePath) => invoke('ext_host_restart', { nodePath: nodePath ?? null }),
 };
 
 window.__falkon_lsp__ = {
-  start: (languageId, serverCmd, serverArgs, cwd) => invoke('lsp_start', { languageId, serverCmd, serverArgs, cwd }),
+  start: (languageId, serverCmd, serverArgs, cwd) => invoke('lsp_start', {
+    languageId,
+    serverCmd,
+    serverArgs: Array.isArray(serverArgs) ? serverArgs : [],
+    cwd: cwd ?? null
+  }),
   send: (sessionId, message) => invoke('lsp_send', { sessionId, message }),
   stop: (sessionId) => invoke('lsp_stop', { sessionId }),
   list: () => invoke('lsp_list'),
 };
 
 window.__falkon_process__ = {
-  spawn: (command, args, cwd) => invoke('process_spawn', { command, args, cwd }),
+  spawn: (command, args, cwd) => invoke('process_spawn', {
+    command,
+    args: Array.isArray(args) ? args : [],
+    cwd: cwd ?? null
+  }),
   kill: (sessionId) => invoke('process_kill', { sessionId }),
   sendStdin: (sessionId, input) => invoke('process_send_stdin', { sessionId, input }),
   list: () => invoke('process_list'),
 };
-
-// ─────────────────────────────────────────────
-// Native Dialog Trigger Hooks
-// ─────────────────────────────────────────────
-if (typeof window !== 'undefined') {
-  window.addEventListener('DOMContentLoaded', () => {
-    document.addEventListener('click', (e) => {
-      const target = e.target;
-      if (target && target.closest) {
-        const btn = target.closest('.monaco-button');
-        if (btn && btn.textContent && btn.textContent.trim().toLowerCase() === 'open folder') {
-          e.preventDefault();
-          e.stopPropagation();
-          window.__tauri_dialogs__.openFolder();
-        }
-      }
-    }, true);
-  });
-}

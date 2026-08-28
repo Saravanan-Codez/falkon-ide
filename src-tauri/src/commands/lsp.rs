@@ -27,11 +27,13 @@ pub fn lsp_start(
     state: State<'_, LspState>,
     language_id: String,
     server_cmd: String,
-    server_args: Vec<String>,
+    server_args: Option<Vec<String>>,
     cwd: Option<String>,
 ) -> Result<serde_json::Value, FalkonError> {
     let mut cmd = Command::new(&server_cmd);
-    cmd.args(&server_args);
+    if let Some(ref args) = server_args {
+        cmd.args(args);
+    }
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

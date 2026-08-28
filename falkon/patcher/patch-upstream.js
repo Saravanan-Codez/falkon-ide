@@ -68,6 +68,12 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
   // └─────────────────────────────────────────────────────────────────────────
   {
     file: 'src/vs/workbench/services/lifecycle/browser/lifecycleService.ts',
+    desc: 'Remove unused localize import in lifecycleService.ts',
+    find: `import { localize } from '../../../../nls.js';\nimport { InstantiationType`,
+    replace: `import { InstantiationType`,
+  },
+  {
+    file: 'src/vs/workbench/services/lifecycle/browser/lifecycleService.ts',
     desc: 'Suppress "Leave site?" browser dialog (freezes Tauri window)',
     find:
 `\tprivate vetoBeforeUnload(event: BeforeUnloadEvent): void {
@@ -291,7 +297,57 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 			}
 		}`,
   },
+  {
+    file: 'src/vs/code/browser/workbench/workbench.ts',
+    desc: 'Remove unused isStandalone import in workbench.ts',
+    find: `import { isStandalone } from '../../../base/browser/browser.js';\nimport { addDisposableListener }`,
+    replace: `import { addDisposableListener }`,
+  },
+  {
+    file: 'src/vs/workbench/services/dialogs/browser/abstractFileDialogService.ts',
+    desc: 'Delegate pickFileToSaveSimplified to Tauri native save file dialog',
+    find:
+`	protected async pickFileToSaveSimplified(schema: string, options: ISaveDialogOptions): Promise<URI | undefined> {
+		if (!options.availableFileSystems) {
+			options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
+		}
 
+		options.title = nls.localize('saveFileAs.title', 'Save As');
+		const uri = await this.saveRemoteResource(options);
+
+		if (uri) {
+			this.addFileToRecentlyOpened(uri);
+		}
+
+		return uri;
+	}`,
+    replace:
+`	protected async pickFileToSaveSimplified(schema: string, options: ISaveDialogOptions): Promise<URI | undefined> {
+		if ((window as any).__tauri_dialogs__) {
+			const defaultName = options.defaultUri ? options.defaultUri.path.split('/').pop() : undefined;
+			const filePath = await (window as any).__tauri_dialogs__.saveFile(defaultName);
+			if (filePath && typeof filePath === 'string') {
+				const norm = filePath.replace(/\\\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				this.addFileToRecentlyOpened(fileUri);
+				return fileUri;
+			}
+			return undefined;
+		}
+		if (!options.availableFileSystems) {
+			options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
+		}
+
+		options.title = nls.localize('saveFileAs.title', 'Save As');
+		const uri = await this.saveRemoteResource(options);
+
+		if (uri) {
+			this.addFileToRecentlyOpened(uri);
+		}
+
+		return uri;
+	}`,
+  },
 ];
 
 // ─────────────────────────────────────────────
