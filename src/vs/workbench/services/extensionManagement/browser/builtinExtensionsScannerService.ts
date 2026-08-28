@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, TargetPlatform, IExtension } from '../../../../platform/extensions/common/extensions.js';
-import { Language } from '../../../../base/common/platform.js';
+import { isWeb, Language } from '../../../../base/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -29,8 +29,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 
 	declare readonly _serviceBrand: undefined;
 
-	// Cached once at construction — scanBuiltinExtensions() returns instantly on repeated calls
-	private readonly _cachedExtensions!: Promise<IExtension[]>;
+	private readonly builtinExtensionsPromises: Promise<IExtension>[] = [];
 
 	private nlsUrl: URI | undefined;
 
@@ -41,8 +40,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		@IProductService productService: IProductService,
 		@ILogService private readonly logService: ILogService
 	) {
-		// Falkon: removed isWeb gate — always scan in native desktop app
-		{
+		if (isWeb) {
 			const nlsBaseUrl = productService.extensionsGallery?.nlsBaseUrl;
 			// Only use the nlsBaseUrl if we are using a language other than the default, English.
 			if (nlsBaseUrl && productService.commit && !Language.isDefaultVariant()) {
@@ -68,7 +66,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					}
 				}
 
-				this._cachedExtensions = Promise.all(bundledExtensions.map(async e => {
+				this.builtinExtensionsPromises = bundledExtensions.map(async e => {
 					const id = getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name);
 					return {
 						identifier: { id },
@@ -83,13 +81,13 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 						isValid: true,
 						preRelease: false,
 					};
-				}));
+				});
 			}
 		}
 	}
 
 	async scanBuiltinExtensions(): Promise<IExtension[]> {
-		return this._cachedExtensions ?? [];
+		return [...await Promise.all(this.builtinExtensionsPromises)];
 	}
 
 	private async localizeManifest(extensionId: string, manifest: IExtensionManifest, fallbackTranslations: ITranslations): Promise<IExtensionManifest> {

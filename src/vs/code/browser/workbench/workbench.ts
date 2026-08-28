@@ -497,8 +497,19 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		const targetHref = this.createTargetUrl(workspace, options);
 		if (targetHref) {
-			mainWindow.location.href = targetHref;
-			return true;
+			if (options?.reuse) {
+				mainWindow.location.href = targetHref;
+				return true;
+			} else {
+				let result;
+				if (isStandalone()) {
+					result = mainWindow.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
+				} else {
+					result = mainWindow.open(targetHref);
+				}
+
+				return !!result;
+			}
 		}
 
 		return false;
@@ -605,32 +616,9 @@ function readCookie(name: string): string | undefined {
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
-	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
+	create(mainWindow.document.body, {
 		...config,
-		configurationDefaults: {
-			'workbench.colorTheme': 'Default Dark Modern',
-			'workbench.preferredDarkColorTheme': 'Default Dark Modern',
-			'workbench.iconTheme': 'vs-seti',
-			'window.titleBarStyle': 'native',
-			'window.customTitleBarVisibility': 'never',
-			'window.dialogStyle': 'custom',
-			'window.menuBarVisibility': 'classic',
-			'window.commandCenter': true,
-			'workbench.navigationControl.enabled': true,
-			'workbench.layoutControl.enabled': true,
-			'workbench.tree.renderIndentGuides': 'always',
-			'security.workspace.trust.enabled': false,
-			'git.enabled': true,
-			'git.path': 'git',
-			'git.autoRepositoryDetection': true,
-			'workbench.colorCustomizations': {
-				'statusBar.background': '#181818',
-				'statusBar.noFolderBackground': '#181818',
-				'statusBar.debuggingBackground': '#181818',
-				'statusBar.border': '#2b2b2b'
-			},
-			...config.configurationDefaults
-		},
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),

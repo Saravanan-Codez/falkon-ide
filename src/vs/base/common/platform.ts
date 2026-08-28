@@ -94,7 +94,7 @@ if (typeof nodeProcess === 'object') {
 	_isNative = true;
 }
 
-// Web environment vs Falkon IDE (Tauri native desktop)
+// Web environment
 else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
 	_isWindows = _userAgent.indexOf('Windows') >= 0;
@@ -102,9 +102,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
-	// Falkon IDE runs in Tauri — treat as native desktop, not web browser
-	const _isTauriApp = typeof $globalThis.__TAURI__ !== 'undefined' || true;
-	if (_isTauriApp) { _isNative = true; _isWeb = false; } else { _isWeb = true; }
+	_isWeb = true;
 	_language = nls.getNLSLanguage() || LANGUAGE_DEFAULT;
 	_locale = navigator.language.toLowerCase();
 	_platformLocale = _locale;

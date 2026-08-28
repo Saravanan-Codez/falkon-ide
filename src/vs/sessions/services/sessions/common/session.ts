@@ -156,6 +156,8 @@ export interface ISessionGitRepository {
 	readonly hasGitOperationInProgress?: boolean;
 	/** GitHub information associated with the repository. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	/** Starts resolving GitHub information when the repository exposes it lazily. */
+	readonly resolveGitHubInfo?: () => void;
 }
 
 /**
@@ -234,7 +236,7 @@ export function getSessionWorkspaceKind(workspace: ISessionWorkspace | undefined
 }
 
 /**
- * The kinds of artifact an agent can record on a session.
+ * The kinds of artifact or reference an agent can record on a session.
  */
 export const enum SessionArtifactKind {
 	PullRequest = 'pullRequest',
@@ -250,6 +252,11 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/**
+	 * `true` for an artifact — something the session produced — and `false` for
+	 * a reference, something it only points the user at.
+	 */
+	readonly isArtifact: boolean;
 	/** Link opened when activating a pull request, issue, commit or website. */
 	readonly link?: URI;
 	/** Resource opened when activating a file or resource artifact. */
@@ -358,40 +365,6 @@ export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange
 export type ISessionTurnFileChange = ISessionFileChange & {
 	readonly isOutsideWorkspace: boolean;
 };
-
-/**
- * The kind of change applied to a {@link ISessionFile}.
- *
- * A file that is first created and then edited during the session is reported
- * as {@link Created}. A file that is deleted is reported as {@link Deleted}
- * regardless of any earlier creation or edit.
- */
-export const enum SessionFileOperation {
-	/** The file was created during the session (and possibly edited afterwards). */
-	Created = 'created',
-	/** The file existed before the session and was modified during it. */
-	Modified = 'modified',
-	/** The file was deleted during the session. */
-	Deleted = 'deleted',
-}
-
-/**
- * A file that was created, edited or deleted **outside** the session workspace
- * folders during the session. These are surfaced separately from
- * {@link ISession.changes} because they are not part of the workspace and will
- * not be committed.
- */
-export interface ISessionFile {
-	/** The file URI (after-state for create/modify, the deleted path for delete). */
-	readonly uri: URI;
-	/** The kind of change applied to the file during the session. */
-	readonly operation: SessionFileOperation;
-	/**
-	 * URI from which the file's pre-session content can be read, when known.
-	 * Used to render a diff for {@link SessionFileOperation.Modified} files.
-	 */
-	readonly originalUri?: URI;
-}
 
 /**
  * Well-known id of the changeset that holds the diff between a session's branch
@@ -716,6 +689,8 @@ export interface ISession {
 	readonly isAutomation?: IObservable<boolean>;
 	/** Whether this session was discovered in an application other than the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
+	/** Session turn that created this session, when it was created by another agent session. */
+	readonly createdBySession?: IObservable<ISessionCreationReference | undefined>;
 
 	// Reactive properties
 
@@ -734,19 +709,19 @@ export interface ISession {
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
-	 * Files created, edited or deleted **outside** the session workspace folders
-	 * during the session (e.g. config files in the user's home directory). These
-	 * are not part of {@link changes} and will not be committed. Providers that
-	 * cannot determine this report an empty array (or omit the observable).
+	 * The artifacts and references the agent recorded for this session (pull
+	 * requests, issues, files, …). Both categories share this observable and are
+	 * told apart by {@link ISessionArtifact.isArtifact}, so a consumer that
+	 * surfaces only one of them must filter on that field.
 	 */
-	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
-	/** Artifacts the agent recorded for this session (pull requests, issues, files, …). */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
+	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
+	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -766,6 +741,12 @@ export interface ISession {
 	 * arrives after the session's first state update).
 	 */
 	readonly capabilities: IObservable<ISessionCapabilities>;
+}
+
+export interface ISessionCreationReference {
+	readonly session: URI;
+	readonly chat?: URI;
+	readonly turnId?: string;
 }
 
 /** Returns whether any chat or session-level fallback reports file changes. */
@@ -881,8 +862,18 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */
 	readonly providerId: string;
-	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
-	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Whether the selected workspace should also be attached as prompt context.
+	 * Context selections remain attached when the user chooses a different
+	 * execution workspace.
+	 */
+	readonly attachesContext?: boolean;
+	/**
+	 * Execute the browse action and return the selected workspace, or undefined
+	 * if cancelled. The current execution workspace is provided so context
+	 * pickers can scope results to its repository.
+	 */
+	run(currentWorkspace?: ISessionWorkspace): Promise<ISessionWorkspace | undefined>;
 	/**
 	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
 	 * picker that shows a folder list with search-as-you-type instead of

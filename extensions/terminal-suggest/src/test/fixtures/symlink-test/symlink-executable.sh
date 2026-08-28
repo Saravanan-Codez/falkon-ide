@@ -1,2 +1,1 @@
-#!/bin/bash
-echo "real executable"
+real-executable.sh
