@@ -129,27 +129,44 @@ for (const gitPath of gitPaths) {
 }
 
 // ── Start Stock VS Code Node.js Server Sidecar ──────────────────────────────
-const serverEntryPoint = join(__dirname, '../../out', 'server-main.js');
-if (existsSync(serverEntryPoint)) {
+const candidateServerPaths = [
+  join(__dirname, '../../src', 'server-main.js'),
+  join(__dirname, '../../out', 'server-main.js'),
+];
+const serverEntryPoint = candidateServerPaths.find(p => existsSync(p));
+
+if (serverEntryPoint) {
   try {
-    const res = await fetch('http://127.0.0.1:9888/').catch(() => null);
-    if (res) {
+    let res = await fetch('http://127.0.0.1:9888/').catch(() => null);
+    if (res && res.status === 200) {
       console.log('⚡ Stock VS Code Node.js Server Sidecar is already running on port 9888.');
     } else {
       console.log('⚡ Launching stock VS Code Node.js Server Sidecar on port 9888...');
-      const serverProc = spawn(process.execPath, [serverEntryPoint, '--port', '9888', '--accept-server-license-terms', '--without-connection-token'], {
+      const serverProc = spawn(process.execPath, [
+        serverEntryPoint,
+        '--port', '9888',
+        '--accept-server-license-terms',
+        '--without-connection-token'
+      ], {
         env,
         stdio: 'ignore'
       });
       process.on('exit', () => serverProc.kill());
+      process.on('SIGINT', () => { serverProc.kill(); process.exit(0); });
+      process.on('SIGTERM', () => { serverProc.kill(); process.exit(0); });
+
+      // Poll until server is ready
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 200));
+        res = await fetch('http://127.0.0.1:9888/').catch(() => null);
+        if (res && res.status === 200) {
+          console.log('✅ VS Code Node.js Server Sidecar is ready on port 9888!');
+          break;
+        }
+      }
     }
   } catch (_e) {
-    console.log('⚡ Launching stock VS Code Node.js Server Sidecar on port 9888...');
-    const serverProc = spawn(process.execPath, [serverEntryPoint, '--port', '9888', '--accept-server-license-terms', '--without-connection-token'], {
-      env,
-      stdio: 'ignore'
-    });
-    process.on('exit', () => serverProc.kill());
+    console.warn('⚠️ Could not connect to VS Code Server Sidecar on port 9888.');
   }
 }
 
