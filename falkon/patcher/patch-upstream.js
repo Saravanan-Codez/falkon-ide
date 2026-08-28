@@ -383,14 +383,14 @@ export function applyPatches() {
     const findNorm = patch.find.replace(/\r\n/g, '\n');
     const replNorm = patch.replace.replace(/\r\n/g, '\n');
 
-    if (content.includes(findNorm)) {
+    if (content.includes(replNorm)) {
+      console.log(`  –  ALREADY : ${patch.file}\n     └─ ${patch.desc}`);
+      alreadyDone++;
+    } else if (content.includes(findNorm)) {
       const patched = content.replace(findNorm, replNorm);
       fs.writeFileSync(filePath, crlf ? patched.replace(/\n/g, '\r\n') : patched, 'utf8');
       console.log(`  ✓  PATCHED : ${patch.file}\n     └─ ${patch.desc}`);
       applied++;
-    } else if (content.includes(replNorm)) {
-      console.log(`  –  ALREADY : ${patch.file}\n     └─ ${patch.desc}`);
-      alreadyDone++;
     } else {
       console.error(`  ✗  FAILED  : ${patch.file}\n     └─ ${patch.desc}\n     └─ Anchor text not found — upstream may have changed this area.`);
       failed++;
