@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 fn main() {
     #[cfg(target_os = "linux")]
     {
-        // Sanitize environment variables that may leak outdated Snap glibc / libpthread libraries
+        // Sanitize environment variables only if they leak outdated Snap libraries
         let vars_to_clean = [
             "LD_LIBRARY_PATH",
             "GTK_PATH",
@@ -34,25 +34,24 @@ fn main() {
         ];
         for var in &vars_to_clean {
             if let Ok(val) = std::env::var(var) {
-                let cleaned: Vec<&str> = val
-                    .split(':')
-                    .filter(|p| !p.contains("/snap/core") && !p.contains("/snap/"))
-                    .filter(|p| !p.trim().is_empty())
-                    .collect();
-                if cleaned.is_empty() {
-                    std::env::remove_var(var);
-                } else {
-                    std::env::set_var(var, cleaned.join(":"));
+                if val.contains("/snap/core") || val.contains("/snap/") {
+                    let cleaned: Vec<&str> = val
+                        .split(':')
+                        .filter(|p| !p.contains("/snap/core") && !p.contains("/snap/"))
+                        .filter(|p| !p.trim().is_empty())
+                        .collect();
+                    if cleaned.is_empty() {
+                        std::env::remove_var(var);
+                    } else {
+                        std::env::set_var(var, cleaned.join(":"));
+                    }
                 }
             }
         }
 
-        // Avoid DRI2 / EGL driver crashes and WebKitGTK bugs on Linux
+        // Avoid DMABUF driver crashes on buggy drivers
         if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        }
-        if std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").is_err() {
-            std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
         }
     }
 

@@ -4,8 +4,6 @@
   "version": "1.136.0",
   "identifier": "com.falkon.ide",
   "build": {
-    "beforeBuildCommand": "node falkon/build/bundle-vscode.js",
-    "beforeDevCommand": "node falkon/build/bundle-vscode.js",
     "frontendDist": "../dist"
   },
   "app": {

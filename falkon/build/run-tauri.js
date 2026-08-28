@@ -143,6 +143,20 @@ const rootDir = join(__dirname, '../../');
 const srcTauriDir = join(__dirname, '../../src-tauri');
 const localTauriCli = join(rootDir, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 
+// Synchronously bundle VS Code workbench once before launching Tauri
+if (action === 'dev' || action === 'build') {
+  try {
+    execSync(`node "${join(__dirname, 'bundle-vscode.js')}"`, {
+      cwd: rootDir,
+      stdio: 'inherit',
+      env
+    });
+  } catch (bundleErr) {
+    console.error('❌ Failed to bundle VS Code Workbench:', bundleErr.message);
+    process.exit(1);
+  }
+}
+
 let child;
 if (action === 'test') {
   console.log('🚀 Running Cargo unit tests with MSVC environment...');
