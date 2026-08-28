@@ -17,6 +17,8 @@
     "build:dmg": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles dmg",
     "build:deb": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles deb",
     "build:appimage": "node falkon/build/bundle-vscode.js && node falkon/build/run-tauri.js build --bundles appimage",
+    "build:arch": "node falkon/build/bundle-vscode.js && node falkon/build/build-arch-pkg.js",
+    "build:pacman": "node falkon/build/bundle-vscode.js && node falkon/build/build-arch-pkg.js",
     "bundle-vs": "node build/build-all-extensions.mjs && node falkon/build/bundle-vscode.js",
     "patch": "node falkon/patcher/patch-upstream.js",
     "unit-test": "node falkon/build/run-tauri.js test",

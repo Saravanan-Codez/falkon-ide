@@ -86,13 +86,18 @@ if (process.platform === 'linux') {
   env.NO_STRIP = 'true';
 }
 
+import { buildArchPackage } from './build-arch-pkg.js';
+
 const isWin = process.platform === 'win32';
 const isLinux = process.platform === 'linux';
 
-const tauriArgs = [action, ...extraArgs];
+const isArchTarget = extraArgs.some(a => a === 'arch' || a === 'pacman');
+const filteredExtraArgs = extraArgs.filter(a => a !== 'arch' && a !== 'pacman');
+
+const tauriArgs = [action, ...filteredExtraArgs];
 
 // On Linux, default build targets to deb,rpm if not explicitly specified
-if (action === 'build' && isLinux && !extraArgs.some(a => a === '--bundles' || a === '-b')) {
+if (action === 'build' && isLinux && !filteredExtraArgs.some(a => a === '--bundles' || a === '-b')) {
   tauriArgs.push('--bundles', 'deb,rpm');
 }
 
@@ -170,5 +175,12 @@ if (action === 'test') {
 }
 
 child.on('exit', (code) => {
+  if (code === 0 && action === 'build' && isLinux) {
+    try {
+      buildArchPackage();
+    } catch (err) {
+      console.error('⚠️ Arch package generation warning:', err.message);
+    }
+  }
   process.exit(code || 0);
 });
