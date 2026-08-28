@@ -24,6 +24,10 @@ use std::sync::{Arc, Mutex};
 fn main() {
     #[cfg(target_os = "linux")]
     {
+        // Prevent GIO / GVFS from timing out on D-Bus daemon queries
+        std::env::set_var("GIO_USE_VFS", "local");
+        std::env::set_var("GIO_USE_VOLUME_MONITOR", "unix");
+
         // Sanitize environment variables only if they leak outdated Snap libraries
         let vars_to_clean = [
             "LD_LIBRARY_PATH",

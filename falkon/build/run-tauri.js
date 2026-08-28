@@ -84,17 +84,31 @@ delete env.GTK_PATH;
 if (process.platform === 'linux') {
   env.APPIMAGE_EXTRACT_AND_RUN = '1';
   env.NO_STRIP = 'true';
+  env.GIO_USE_VFS = 'local';
+  env.GIO_USE_VOLUME_MONITOR = 'unix';
 }
 
-import { buildArchPackage } from './build-arch-pkg.js';
+import { fetchPortableNode } from './fetch-node-runtime.js';
 
 const isWin = process.platform === 'win32';
 const isLinux = process.platform === 'linux';
 
+const isStandalone = extraArgs.some(a => a === '--standalone' || a === '-s');
 const isArchTarget = extraArgs.some(a => a === 'arch' || a === 'pacman');
-const filteredExtraArgs = extraArgs.filter(a => a !== 'arch' && a !== 'pacman');
+const filteredExtraArgs = extraArgs.filter(a => a !== 'arch' && a !== 'pacman' && a !== '--standalone' && a !== '-s');
 
 const tauriArgs = [action, ...filteredExtraArgs];
+
+// If standalone mode requested (for dev or build), ensure portable Node runtime is present and prioritized
+if (isStandalone) {
+  const nodeBin = await fetchPortableNode();
+  if (nodeBin) {
+    const nodeBinDir = path.dirname(nodeBin);
+    env.PATH = isWin ? `${nodeBinDir};${env.PATH || ''}` : `${nodeBinDir}:${env.PATH || ''}`;
+    env.Path = env.PATH;
+    console.log(`⚡ Standalone Mode: Prioritizing Node.js runtime at ${nodeBin}`);
+  }
+}
 
 // On Linux, default build targets to deb,rpm if not explicitly specified
 if (action === 'build' && isLinux && !filteredExtraArgs.some(a => a === '--bundles' || a === '-b')) {
@@ -188,10 +202,12 @@ if (action === 'test') {
   child = spawn('npx', ['--yes', '@tauri-apps/cli', ...tauriArgs], { cwd: rootDir, stdio: 'inherit', env });
 }
 
-child.on('exit', (code) => {
+import { buildArchPackage } from './build-arch-pkg.js';
+
+child.on('exit', async (code) => {
   if (code === 0 && action === 'build' && isLinux) {
     try {
-      buildArchPackage();
+      await buildArchPackage({ standalone: isStandalone });
     } catch (err) {
       console.error('⚠️ Arch package generation warning:', err.message);
     }

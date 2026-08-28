@@ -8,14 +8,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../../');
 
-export function buildArchPackage() {
-  console.log('\n📦 Building Arch Linux Package (.pkg.tar.zst)...');
+import { fetchPortableNode } from './fetch-node-runtime.js';
+
+export async function buildArchPackage(options = {}) {
+  const isStandalone = !!options.standalone;
+  const pkgname = isStandalone ? 'falkon-ide-standalone' : 'falkon-ide';
+  console.log(`\n📦 Building Arch Linux Package (.pkg.tar.zst) [${isStandalone ? 'STANDALONE' : 'LITE'}]...`);
 
   const pkgJsonPath = path.join(rootDir, 'package.json');
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
   const version = pkgJson.version || '1.136.0';
   const pkgrel = '1';
-  const pkgname = 'falkon-ide';
   const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64';
 
   const tauriTargetDir = path.join(rootDir, 'src-tauri', 'target', 'release');
@@ -101,6 +104,19 @@ MimeType=text/plain;inode/directory;
       const targetIconFile = path.join(targetIconDir, 'falkon-ide.png');
       fs.copyFileSync(item.src, targetIconFile);
       fs.chmodSync(targetIconFile, 0o644);
+    }
+  }
+
+  // If standalone, embed portable Node.js runtime into /usr/lib/falkon-ide/bin/node
+  if (isStandalone) {
+    const nodeBin = await fetchPortableNode();
+    if (nodeBin && fs.existsSync(nodeBin)) {
+      const libNodeDir = path.join(tempStageDir, 'usr', 'lib', 'falkon-ide', 'bin');
+      fs.mkdirSync(libNodeDir, { recursive: true });
+      const targetNode = path.join(libNodeDir, 'node');
+      fs.copyFileSync(nodeBin, targetNode);
+      fs.chmodSync(targetNode, 0o755);
+      console.log('   ✓ Embedded portable Node.js runtime into /usr/lib/falkon-ide/bin/node');
     }
   }
 
@@ -210,5 +226,6 @@ pkgtypes = pkg
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  buildArchPackage();
+  const isStandalone = process.argv.includes('--standalone') || process.argv.includes('-s');
+  buildArchPackage({ standalone: isStandalone });
 }

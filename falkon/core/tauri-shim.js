@@ -22,22 +22,38 @@ const invoke = (cmd, args) => {
   return Promise.resolve(null);
 };
 
+const normalizePath = (p) => {
+  if (!p) return '';
+  if (typeof p === 'string') {
+    let clean = p.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
+    if (/^[a-zA-Z]:/.test(clean)) {
+      clean = clean.replace(/\\/g, '/');
+    }
+    return decodeURIComponent(clean);
+  }
+  if (p && typeof p === 'object') {
+    if (typeof p.fsPath === 'string') return p.fsPath;
+    if (typeof p.path === 'string') return normalizePath(p.path);
+  }
+  return String(p);
+};
+
 // ─────────────────────────────────────────────
 //  File System Provider API (exposed to workbench init)
 // ─────────────────────────────────────────────
 
 window.__tauri_fs__ = {
-  readFile: (path) => invoke('read_file', { filePath: path }),
-  readFileBytes: (path) => invoke('read_file_bytes', { filePath: path }),
-  writeFile: (path, content) => invoke('write_file', { filePath: path, content }),
-  writeFileBytes: (path, bytes) => invoke('write_file_bytes', { filePath: path, bytes: Array.from(bytes) }),
-  copy: (source, target) => invoke('copy_file', { source, target }),
-  readDir: (path) => invoke('read_dir', { dirPath: path }),
-  stat: (path) => invoke('stat_file', { filePath: path }),
-  exists: (path) => invoke('file_exists', { filePath: path }),
-  mkdir: (path) => invoke('create_dir', { dirPath: path }),
-  rename: (oldPath, newPath) => invoke('rename_file', { oldPath, newPath }),
-  delete: (path) => invoke('delete_file', { filePath: path }),
+  readFile: (path) => invoke('read_file', { filePath: normalizePath(path) }),
+  readFileBytes: (path) => invoke('read_file_bytes', { filePath: normalizePath(path) }),
+  writeFile: (path, content) => invoke('write_file', { filePath: normalizePath(path), content: String(content ?? '') }),
+  writeFileBytes: (path, bytes) => invoke('write_file_bytes', { filePath: normalizePath(path), bytes: Array.from(bytes || []) }),
+  copy: (source, target) => invoke('copy_file', { source: normalizePath(source), target: normalizePath(target) }),
+  readDir: (path) => invoke('read_dir', { dirPath: normalizePath(path) }),
+  stat: (path) => invoke('stat_file', { filePath: normalizePath(path) }),
+  exists: (path) => invoke('file_exists', { filePath: normalizePath(path) }),
+  mkdir: (path) => invoke('create_dir', { dirPath: normalizePath(path) }),
+  rename: (oldPath, newPath) => invoke('rename_file', { oldPath: normalizePath(oldPath), newPath: normalizePath(newPath) }),
+  delete: (path) => invoke('delete_file', { filePath: normalizePath(path) }),
 };
 
 // ─────────────────────────────────────────────
@@ -46,14 +62,32 @@ window.__tauri_fs__ = {
 
 window.__tauri_dialogs__ = {
   openFolder: async () => {
-    const res = await invoke('open_folder_dialog', {});
-    return res;
+    try {
+      const res = await invoke('open_folder_dialog', {});
+      return typeof res === 'string' ? res : null;
+    } catch (err) {
+      console.warn('[Tauri Dialogs] openFolder failed:', err);
+      return null;
+    }
   },
   openFile: async (filters) => {
-    const res = await invoke('open_file_dialog', { filters: filters ?? [] });
-    return res;
+    try {
+      const res = await invoke('open_file_dialog', { filters: Array.isArray(filters) ? filters : [] });
+      return typeof res === 'string' ? res : null;
+    } catch (err) {
+      console.warn('[Tauri Dialogs] openFile failed:', err);
+      return null;
+    }
   },
-  saveFile: (defaultName) => invoke('save_file_dialog', { defaultName: defaultName ?? null }),
+  saveFile: async (defaultName) => {
+    try {
+      const res = await invoke('save_file_dialog', { defaultName: defaultName ? String(defaultName) : null });
+      return typeof res === 'string' ? res : null;
+    } catch (err) {
+      console.warn('[Tauri Dialogs] saveFile failed:', err);
+      return null;
+    }
+  },
 };
 
 // ─────────────────────────────────────────────
@@ -325,7 +359,15 @@ window.XMLHttpRequest = function() {
         defProp('statusText', 'OK');
         defProp('readyState', 4);
         defProp('responseText', text);
-        defProp('response', text);
+        let parsedResp = text;
+        if (xhr.responseType === 'json') {
+          try {
+            parsedResp = JSON.parse(text);
+          } catch (_) {
+            parsedResp = null;
+          }
+        }
+        defProp('response', parsedResp);
         xhr.getAllResponseHeaders = () => 'content-type: application/json\r\n';
         xhr.getResponseHeader = (name) => {
           if (name && name.toLowerCase() === 'content-type') return 'application/json';

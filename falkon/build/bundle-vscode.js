@@ -211,8 +211,14 @@ function copyExtensionDir(srcDir, destDir) {
   if (!fs.existsSync(srcDir)) return;
   fs.mkdirSync(destDir, { recursive: true });
   const items = fs.readdirSync(srcDir, { withFileTypes: true });
+  const ignoredDirs = new Set(['node_modules', 'src', 'test', 'tests', 'docs', '.git', '.github', 'script', 'scripts', 'build']);
+  const ignoredFiles = new Set(['sanity-test-extension.js', 'test-extension.js', 'simulationMain.js', 'simulationWorkbench.js']);
+
   for (const item of items) {
-    if (item.name === 'node_modules' || item.name === 'src' || item.name === 'test' || item.name === '.git') continue;
+    if (ignoredDirs.has(item.name)) continue;
+    if (ignoredFiles.has(item.name)) continue;
+    if (item.name.endsWith('.map') || item.name.endsWith('.ts') || item.name.endsWith('.tsbuildinfo')) continue;
+
     const srcPath = path.join(srcDir, item.name);
     const destPath = path.join(destDir, item.name);
     if (item.isDirectory()) {
@@ -280,16 +286,15 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
   return bundledExtensions;
 }
 
-    // Populate dist/ directory for Tauri frontendDist
+    // Clean and populate dist/ directory for Tauri frontendDist
+    if (fs.existsSync('dist')) {
+      fs.rmSync('dist', { recursive: true, force: true });
+    }
     fs.mkdirSync('dist/dist', { recursive: true });
     fs.mkdirSync('dist/js', { recursive: true });
-    fs.mkdirSync('dist/out/vs/code/browser/workbench', { recursive: true });
     fs.copyFileSync('src/dist/workbench.js', 'dist/dist/workbench.js');
     fs.copyFileSync('src/dist/workbench.css', 'dist/dist/workbench.css');
-    fs.copyFileSync('src/dist/workbench.js', 'dist/out/vs/code/browser/workbench/workbench.js');
-    if (fs.existsSync('src/vs')) {
-      fs.cpSync('src/vs', 'dist/vs', { recursive: true });
-    }
+
     const tauriShimSource = 'falkon/core/tauri-shim.js';
     if (fs.existsSync(tauriShimSource)) {
       fs.mkdirSync('js', { recursive: true });
@@ -316,6 +321,27 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
       for (const target of targets) {
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.copyFileSync(codiconSrc, target);
+      }
+    }
+
+    // Copy essential runtime node_modules required by VS Code Web (xterm terminal, textmate, oniguruma, katex)
+    const runtimeNodeModules = [
+      '@xterm',
+      'vscode-textmate',
+      'vscode-oniguruma',
+      'katex',
+      'jschardet',
+      '@vscode/tree-sitter-wasm',
+      '@vscode/codicons',
+    ];
+
+    fs.mkdirSync('dist/node_modules', { recursive: true });
+    for (const mod of runtimeNodeModules) {
+      const srcMod = path.join('node_modules', mod);
+      const destMod = path.join('dist', 'node_modules', mod);
+      if (fs.existsSync(srcMod)) {
+        fs.mkdirSync(path.dirname(destMod), { recursive: true });
+        copyExtensionDir(srcMod, destMod);
       }
     }
 

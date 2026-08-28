@@ -11,7 +11,12 @@
   "private": true,
   "scripts": {
     "dev": "node falkon/build/run-tauri.js dev",
+    "dev:lite": "node falkon/build/run-tauri.js dev",
+    "dev:standalone": "node falkon/build/run-tauri.js dev --standalone",
     "build": "node falkon/build/run-tauri.js build",
+    "build:lite": "node falkon/build/run-tauri.js build",
+    "build:standalone": "node falkon/build/run-tauri.js build --standalone",
+    "build:standalone:arch": "node falkon/build/build-arch-pkg.js --standalone",
     "build:msi": "node falkon/build/run-tauri.js build --bundles msi",
     "build:nsis": "node falkon/build/run-tauri.js build --bundles nsis",
     "build:dmg": "node falkon/build/run-tauri.js build --bundles dmg",

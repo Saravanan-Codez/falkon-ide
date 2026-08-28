@@ -26,6 +26,47 @@ pub struct ExtHostLogEvent {
     pub line: String,
 }
 
+fn resolve_node_executable(node_path: Option<String>) -> Option<String> {
+    // 1. User/caller explicit path
+    if let Some(ref p) = node_path {
+        if !p.trim().is_empty() && std::path::Path::new(p).exists() {
+            return Some(p.clone());
+        }
+    }
+
+    // 2. Bundled sidecar path (Build Type A - Standalone)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            let candidates = [
+                parent.join("resources").join("node").join(if cfg!(windows) { "node.exe" } else { "bin/node" }),
+                parent.join("node").join(if cfg!(windows) { "node.exe" } else { "bin/node" }),
+                parent.join("..").join("lib").join("falkon-ide").join("bin").join("node"),
+                std::path::PathBuf::from("/usr/lib/falkon-ide/bin/node"),
+            ];
+            for c in &candidates {
+                if c.exists() {
+                    return Some(c.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
+    // 3. User cached runtime (~/.falkon/runtime/node/)
+    if let Some(home) = dirs::home_dir() {
+        let cached = home.join(".falkon").join("runtime").join("node").join(if cfg!(windows) { "node.exe" } else { "bin/node" });
+        if cached.exists() {
+            return Some(cached.to_string_lossy().to_string());
+        }
+    }
+
+    // 4. System PATH
+    if let Ok(p) = which::which("node") {
+        return Some(p.to_string_lossy().to_string());
+    }
+
+    None
+}
+
 #[tauri::command]
 pub fn ext_host_start(
     app: AppHandle,
@@ -46,18 +87,10 @@ pub fn ext_host_start(
         }));
     }
 
-    // Determine node binary path
-    let node_bin = match node_path {
-        Some(p) if !p.trim().is_empty() => p,
-        _ => match which::which("node") {
-            Ok(p) => p.to_string_lossy().to_string(),
-            Err(_) => {
-                return Err(FalkonError::ExtHostError {
-                    message: "Node.js executable not found on system PATH. Please install Node.js to run extensions.".to_string(),
-                });
-            }
-        },
-    };
+    // Determine node binary path using Hybrid Multi-Tier Resolver
+    let node_bin = resolve_node_executable(node_path).ok_or_else(|| FalkonError::ExtHostError {
+        message: "Node.js runtime not found (neither bundled, cached in ~/.falkon, nor on system PATH).".to_string(),
+    })?;
 
     // Locate ext-host-server.js
     let current_dir = std::env::current_dir().unwrap_or_default();
