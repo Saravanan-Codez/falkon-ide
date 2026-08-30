@@ -622,6 +622,7 @@ function readCookie(name: string): string | undefined {
 			'git.enabled': true,
 			'git.path': 'git',
 			'git.autoRepositoryDetection': true,
+			'extensions.verifySignature': false,
 			'terminal.integrated.gpuAcceleration': 'auto',
 			'terminal.integrated.smoothScrolling': false,
 			'terminal.integrated.cursorBlinking': true,
