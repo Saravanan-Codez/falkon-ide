@@ -45,9 +45,9 @@ fn main() {
             }
         }
 
-        // Enable hardware compositing mode for responsive canvas/xterm rendering
-        if std::env::var("WEBKIT_FORCE_COMPOSITING_MODE").is_err() {
-            std::env::set_var("WEBKIT_FORCE_COMPOSITING_MODE", "1");
+        // Prevent WebKitGTK Wayland DMA-BUF protocol errors (Error 71)
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
     }
 

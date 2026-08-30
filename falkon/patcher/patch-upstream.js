@@ -106,7 +106,7 @@ const PATCHES = [
 \t\t\t'git.path': 'git',
 \t\t\t'git.autoRepositoryDetection': true,
 \t\t\t'extensions.verifySignature': false,
-\t\t\t'terminal.integrated.gpuAcceleration': 'auto',
+\t\t\t'terminal.integrated.gpuAcceleration': 'off',
 \t\t\t'terminal.integrated.smoothScrolling': false,
 \t\t\t'terminal.integrated.cursorBlinking': true,
 \t\t\t'terminal.integrated.fastScrollSensitivity': 5,
