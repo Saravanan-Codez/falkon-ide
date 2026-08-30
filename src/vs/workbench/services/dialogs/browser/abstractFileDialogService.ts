@@ -252,10 +252,18 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if ((window as any).__tauri_dialogs__) {
 			const filePath = await (window as any).__tauri_dialogs__.openFile();
 			if (filePath && typeof filePath === 'string') {
+				const remoteAuth = options.remoteAuthority || this.environmentService.remoteAuthority;
 				const norm = filePath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				const normPath = norm.startsWith('/') ? norm : '/' + norm;
+				const fileUri = remoteAuth
+					? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuth, path: normPath })
+					: URI.from({ scheme: 'file', path: normPath });
 				this.addFileToRecentlyOpened(fileUri);
-				await this.editorService.openEditors([{ resource: fileUri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+				if (options.forceNewWindow || preferNewWindow) {
+					await this.hostService.openWindow([{ fileUri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: remoteAuth });
+				} else {
+					await this.editorService.openEditors([{ resource: fileUri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+				}
 				return;
 			}
 			return;
@@ -284,8 +292,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if ((window as any).__tauri_dialogs__) {
 			const folderPath = await (window as any).__tauri_dialogs__.openFolder();
 			if (folderPath && typeof folderPath === 'string') {
-				const fileUri = URI.file(folderPath);
-				return this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow });
+				const remoteAuth = options.remoteAuthority || this.environmentService.remoteAuthority;
+				const norm = folderPath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+				const normPath = norm.startsWith('/') ? norm : '/' + norm;
+				const fileUri = remoteAuth
+					? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuth, path: normPath })
+					: URI.file(folderPath);
+				return this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: remoteAuth });
 			}
 			return;
 		}
@@ -316,8 +329,12 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			const defaultName = options.defaultUri ? options.defaultUri.path.split('/').pop() : undefined;
 			const filePath = await (window as any).__tauri_dialogs__.saveFile(defaultName);
 			if (filePath && typeof filePath === 'string') {
+				const remoteAuth = this.environmentService.remoteAuthority;
 				const norm = filePath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-				const fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+				const normPath = norm.startsWith('/') ? norm : '/' + norm;
+				const fileUri = remoteAuth
+					? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuth, path: normPath })
+					: URI.from({ scheme: 'file', path: normPath });
 				this.addFileToRecentlyOpened(fileUri);
 				return fileUri;
 			}

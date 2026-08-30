@@ -426,11 +426,16 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 				// Folder
 				case WorkspaceProvider.QUERY_PARAM_FOLDER:
-					if (config.remoteAuthority && value.startsWith(posix.sep)) {
-						// when connected to a remote and having a value
-						// that is a path (begins with a `/`), assume this
-						// is a vscode-remote resource as simplified URL.
-						workspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
+					if (config.remoteAuthority) {
+						let folderPath = value;
+						if (folderPath.startsWith('file://')) {
+							try { folderPath = URI.parse(folderPath).path; } catch (_) {}
+						}
+						if (folderPath.startsWith(posix.sep)) {
+							workspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: folderPath, authority: config.remoteAuthority }) };
+						} else {
+							workspace = { folderUri: URI.parse(value) };
+						}
 					} else {
 						workspace = { folderUri: URI.parse(value) };
 					}
@@ -439,11 +444,16 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 				// Workspace
 				case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
-					if (config.remoteAuthority && value.startsWith(posix.sep)) {
-						// when connected to a remote and having a value
-						// that is a path (begins with a `/`), assume this
-						// is a vscode-remote resource as simplified URL.
-						workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
+					if (config.remoteAuthority) {
+						let wsPath = value;
+						if (wsPath.startsWith('file://')) {
+							try { wsPath = URI.parse(wsPath).path; } catch (_) {}
+						}
+						if (wsPath.startsWith(posix.sep)) {
+							workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: wsPath, authority: config.remoteAuthority }) };
+						} else {
+							workspace = { workspaceUri: URI.parse(value) };
+						}
 					} else {
 						workspace = { workspaceUri: URI.parse(value) };
 					}
@@ -532,7 +542,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 
 	private encodeWorkspacePath(uri: URI): string {
-		if (this.config.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
+		if (this.config.remoteAuthority && (uri.scheme === Schemas.vscodeRemote || uri.scheme === Schemas.file)) {
 
 			// when connected to a remote and having a folder
 			// or workspace for that remote, only use the path

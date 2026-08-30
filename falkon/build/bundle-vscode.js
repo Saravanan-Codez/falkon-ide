@@ -211,7 +211,7 @@ function copyExtensionDir(srcDir, destDir) {
   if (!fs.existsSync(srcDir)) return;
   fs.mkdirSync(destDir, { recursive: true });
   const items = fs.readdirSync(srcDir, { withFileTypes: true });
-  const ignoredDirs = new Set(['node_modules', 'src', 'test', 'tests', 'docs', '.git', '.github', 'script', 'scripts', 'build']);
+  const ignoredDirs = new Set(['src', 'test', 'tests', 'docs', '.git', '.github', 'script', 'scripts', 'build']);
   const ignoredFiles = new Set(['sanity-test-extension.js', 'test-extension.js', 'simulationMain.js', 'simulationWorkbench.js']);
 
   for (const item of items) {
@@ -247,7 +247,7 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
       const packageJSON = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
       if (!packageJSON.name || !packageJSON.publisher) continue;
 
-      // Ensure extensionKind supports web execution for built-in extensions (Git, Language Features, Themes)
+      // Ensure extensionKind supports web & workspace execution for built-in extensions (Git, Language Features, Themes)
       packageJSON.extensionKind = ['ui', 'workspace', 'web'];
       const hasValidBrowser = packageJSON.browser && fs.existsSync(path.join(extSrcPath, packageJSON.browser));
       const hasValidDistBrowser = fs.existsSync(path.join(extSrcPath, 'dist/browser/extension.js'));
@@ -255,9 +255,6 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
         // Keep valid browser bundle
       } else if (hasValidDistBrowser) {
         packageJSON.browser = './dist/browser/extension.js';
-      } else {
-        delete packageJSON.browser;
-        delete packageJSON.main;
       }
 
       let packageNLS;
@@ -271,6 +268,12 @@ function processBuiltinExtensions(extensionsSrcDir, extensionsDestDir) {
       // Copy extension assets to dist/extensions/<name>
       const extDestPath = path.join(extensionsDestDir, entry.name);
       copyExtensionDir(extSrcPath, extDestPath);
+
+      // Explicitly write package.json and package.nls.json to dist
+      fs.writeFileSync(path.join(extDestPath, 'package.json'), JSON.stringify(packageJSON, null, 2));
+      if (packageNLS) {
+        fs.writeFileSync(path.join(extDestPath, 'package.nls.json'), JSON.stringify(packageNLS, null, 2));
+      }
 
       bundledExtensions.push({
         extensionPath: entry.name,

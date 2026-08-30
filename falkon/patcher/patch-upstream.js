@@ -147,8 +147,13 @@ const PATCHES = [
 \t\tif ((window as any).__tauri_dialogs__) {
 \t\t\tconst folderPath = await (window as any).__tauri_dialogs__.openFolder();
 \t\t\tif (folderPath && typeof folderPath === 'string') {
-\t\t\t\tconst fileUri = URI.file(folderPath);
-\t\t\t\treturn this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow });
+\t\t\t\tconst remoteAuth = options.remoteAuthority || this.environmentService.remoteAuthority;
+\t\t\t\tconst norm = folderPath.replace(/\\\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
+\t\t\t\tconst normPath = norm.startsWith('/') ? norm : '/' + norm;
+\t\t\t\tconst fileUri = remoteAuth
+\t\t\t\t\t? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuth, path: normPath })
+\t\t\t\t\t: URI.file(folderPath);
+\t\t\t\treturn this.hostService.openWindow([{ folderUri: fileUri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: remoteAuth });
 \t\t\t}
 \t\t\treturn;
 \t\t}
@@ -185,10 +190,18 @@ const PATCHES = [
 \t\tif ((window as any).__tauri_dialogs__) {
 \t\t\tconst filePath = await (window as any).__tauri_dialogs__.openFile();
 \t\t\tif (filePath && typeof filePath === 'string') {
+\t\t\t\tconst remoteAuth = options.remoteAuthority || this.environmentService.remoteAuthority;
 \t\t\t\tconst norm = filePath.replace(/\\\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-\t\t\t\tconst fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+\t\t\t\tconst normPath = norm.startsWith('/') ? norm : '/' + norm;
+\t\t\t\tconst fileUri = remoteAuth
+\t\t\t\t\t? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuth, path: normPath })
+\t\t\t\t\t: URI.from({ scheme: 'file', path: normPath });
 \t\t\t\tthis.addFileToRecentlyOpened(fileUri);
-\t\t\t\tawait this.editorService.openEditors([{ resource: fileUri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+\t\t\t\tif (options.forceNewWindow || preferNewWindow) {
+\t\t\t\t\tawait this.hostService.openWindow([{ fileUri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: remoteAuth });
+\t\t\t\t} else {
+\t\t\t\t\tawait this.editorService.openEditors([{ resource: fileUri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
+\t\t\t\t}
 \t\t\t\treturn;
 \t\t\t}
 \t\t\treturn;
@@ -232,8 +245,12 @@ const PATCHES = [
 \t\t\tconst defaultName = options.defaultUri ? options.defaultUri.path.split('/').pop() : undefined;
 \t\t\tconst filePath = await (window as any).__tauri_dialogs__.saveFile(defaultName);
 \t\t\tif (filePath && typeof filePath === 'string') {
+\t\t\t\tconst remoteAuth = this.environmentService.remoteAuthority;
 \t\t\t\tconst norm = filePath.replace(/\\\\/g, '/').replace(/^([A-Za-z]):/, '/$1:');
-\t\t\t\tconst fileUri = URI.from({ scheme: 'file', path: norm.startsWith('/') ? norm : '/' + norm });
+\t\t\t\tconst normPath = norm.startsWith('/') ? norm : '/' + norm;
+\t\t\t\tconst fileUri = remoteAuth
+\t\t\t\t\t? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuth, path: normPath })
+\t\t\t\t\t: URI.from({ scheme: 'file', path: normPath });
 \t\t\t\tthis.addFileToRecentlyOpened(fileUri);
 \t\t\t\treturn fileUri;
 \t\t\t}
