@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 /**
  * Falkon IDE — Native Desktop Bridge Shim
  *
@@ -11,9 +16,15 @@
 let _hasWarnedNoTauri = false;
 const invoke = (cmd, args) => {
   const win = window;
-  if (win.__TAURI__?.core?.invoke) return win.__TAURI__.core.invoke(cmd, args);
-  if (win.__TAURI_INTERNALS__?.invoke) return win.__TAURI_INTERNALS__.invoke(cmd, args);
-  if (win.__TAURI_INVOKE__) return win.__TAURI_INVOKE__(cmd, args);
+  if (win.__TAURI__?.core?.invoke) {
+    return win.__TAURI__.core.invoke(cmd, args);
+  }
+  if (win.__TAURI_INTERNALS__?.invoke) {
+    return win.__TAURI_INTERNALS__.invoke(cmd, args);
+  }
+  if (win.__TAURI_INVOKE__) {
+    return win.__TAURI_INVOKE__(cmd, args);
+  }
   if (!_hasWarnedNoTauri) {
     _hasWarnedNoTauri = true;
     console.info('[Falkon Desktop] Running in desktop shell mode.');
@@ -98,7 +109,9 @@ window.__falkon_handle_uri = (rawUri) => {
 
 (function patchNetworkForMarketplace() {
   const isMarketplaceUrl = (url) => {
-    if (!url || typeof url !== 'string') return false;
+    if (!url || typeof url !== 'string') {
+      return false;
+    }
     return (
       url.includes('marketplace.visualstudio.com') ||
       url.includes('open-vsx.org') ||
@@ -116,9 +129,13 @@ window.__falkon_handle_uri = (rawUri) => {
         const headers = {};
         if (init?.headers) {
           if (init.headers instanceof Headers) {
-            init.headers.forEach((v, k) => { headers[k] = v; });
+            init.headers.forEach((v, k) => {
+              headers[k] = v;
+            });
           } else if (Array.isArray(init.headers)) {
-            init.headers.forEach(([k, v]) => { headers[k] = v; });
+            init.headers.forEach(([k, v]) => {
+              headers[k] = v;
+            });
           } else {
             Object.assign(headers, init.headers);
           }
@@ -149,7 +166,7 @@ window.__falkon_handle_uri = (rawUri) => {
     const xhr = new OrigXHR();
     let _targetUrl = '';
     let _method = 'GET';
-    let _headers = {};
+    const _headers = {};
 
     const origOpen = xhr.open;
     xhr.open = function (method, url) {
@@ -160,7 +177,9 @@ window.__falkon_handle_uri = (rawUri) => {
 
     const origSetRequestHeader = xhr.setRequestHeader;
     xhr.setRequestHeader = function (header, value) {
-      if (header) _headers[header] = value;
+      if (header) {
+        _headers[header] = value;
+      }
       return origSetRequestHeader.apply(this, arguments);
     };
 
@@ -174,10 +193,15 @@ window.__falkon_handle_uri = (rawUri) => {
           body: typeof body === 'string' ? body : null,
         })
           .then((text) => {
-            if (typeof text !== 'string') return;
+            if (typeof text !== 'string') {
+              return;
+            }
             const defProp = (name, val) => {
-              try { Object.defineProperty(xhr, name, { value: val, writable: true, configurable: true }); }
-              catch (_) { xhr[name] = val; }
+              try {
+                Object.defineProperty(xhr, name, { value: val, writable: true, configurable: true });
+              } catch (_) {
+                xhr[name] = val;
+              }
             };
             defProp('status', 200);
             defProp('statusText', 'OK');
@@ -185,13 +209,26 @@ window.__falkon_handle_uri = (rawUri) => {
             defProp('responseText', text);
             let parsedResp = text;
             if (xhr.responseType === 'json') {
-              try { parsedResp = JSON.parse(text); } catch (_) { parsedResp = null; }
+              try {
+                parsedResp = JSON.parse(text);
+              } catch (_) {
+                parsedResp = null;
+              }
             }
             defProp('response', parsedResp);
             xhr.getAllResponseHeaders = () => 'content-type: application/json\r\n';
-            xhr.getResponseHeader = (name) => (name && name.toLowerCase() === 'content-type' ? 'application/json' : null);
-            if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
-            if (typeof xhr.onload === 'function') xhr.onload();
+            xhr.getResponseHeader = (name) => {
+              if (name && name.toLowerCase() === 'content-type') {
+                return 'application/json';
+              }
+              return null;
+            };
+            if (typeof xhr.onreadystatechange === 'function') {
+              xhr.onreadystatechange();
+            }
+            if (typeof xhr.onload === 'function') {
+              xhr.onload();
+            }
             xhr.dispatchEvent(new Event('readystatechange'));
             xhr.dispatchEvent(new Event('load'));
             xhr.dispatchEvent(new Event('loadend'));

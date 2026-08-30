@@ -61,3 +61,7 @@
 # Vendored third-party libraries
 src/vs/base/common/lit-html/**
 src/vs/base/common/signals-core/**
+
+# Falkon IDE Native Layer
+falkon/**
+dist/**
