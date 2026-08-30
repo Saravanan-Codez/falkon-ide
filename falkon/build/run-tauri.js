@@ -141,26 +141,26 @@ if (serverEntryPoint) {
     if (res && res.status === 200) {
       console.log('⚡ Stock VS Code Node.js Server Sidecar is already running on port 9888.');
     } else {
-      console.log('⚡ Launching stock VS Code Node.js Server Sidecar on port 9888...');
       const serverProc = spawn(process.execPath, [
         serverEntryPoint,
+        '--host', '127.0.0.1',
         '--port', '9888',
         '--accept-server-license-terms',
         '--without-connection-token'
       ], {
         env,
-        stdio: 'ignore'
+        stdio: ['ignore', 'pipe', 'inherit']
       });
       process.on('exit', () => serverProc.kill());
       process.on('SIGINT', () => { serverProc.kill(); process.exit(0); });
       process.on('SIGTERM', () => { serverProc.kill(); process.exit(0); });
 
       // Poll until server is ready
-      for (let i = 0; i < 30; i++) {
-        await new Promise(r => setTimeout(r, 200));
+      for (let i = 0; i < 40; i++) {
+        await new Promise(r => setTimeout(r, 250));
         res = await fetch('http://127.0.0.1:9888/').catch(() => null);
-        if (res && res.status === 200) {
-          console.log('✅ VS Code Node.js Server Sidecar is ready on port 9888!');
+        if (res && (res.status === 200 || res.status === 302 || res.status === 405)) {
+          console.log('✅ VS Code Node.js Server Sidecar is ready on http://127.0.0.1:9888!');
           break;
         }
       }
