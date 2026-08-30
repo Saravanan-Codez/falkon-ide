@@ -622,6 +622,10 @@ function readCookie(name: string): string | undefined {
 			'git.enabled': true,
 			'git.path': 'git',
 			'git.autoRepositoryDetection': true,
+			'terminal.integrated.gpuAcceleration': 'auto',
+			'terminal.integrated.smoothScrolling': false,
+			'terminal.integrated.cursorBlinking': true,
+			'terminal.integrated.fastScrollSensitivity': 5,
 			'workbench.colorCustomizations': {
 				'statusBar.background': '#181818',
 				'statusBar.noFolderBackground': '#181818',

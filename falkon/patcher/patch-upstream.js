@@ -105,6 +105,10 @@ const PATCHES = [
 \t\t\t'git.enabled': true,
 \t\t\t'git.path': 'git',
 \t\t\t'git.autoRepositoryDetection': true,
+\t\t\t'terminal.integrated.gpuAcceleration': 'auto',
+\t\t\t'terminal.integrated.smoothScrolling': false,
+\t\t\t'terminal.integrated.cursorBlinking': true,
+\t\t\t'terminal.integrated.fastScrollSensitivity': 5,
 \t\t\t'workbench.colorCustomizations': {
 \t\t\t\t'statusBar.background': '#181818',
 \t\t\t\t'statusBar.noFolderBackground': '#181818',
