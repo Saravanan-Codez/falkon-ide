@@ -616,6 +616,7 @@ function readCookie(name: string): string | undefined {
 	// Create workbench
 	create(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
 		...config,
+		windowIndicator: config.windowIndicator ?? { label: 'Falkon', tooltip: 'Falkon IDE' },
 		configurationDefaults: {
 			'workbench.colorTheme': 'Default Dark Modern',
 			'workbench.preferredDarkColorTheme': 'Default Dark Modern',

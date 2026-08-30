@@ -145,6 +145,7 @@ if (serverEntryPoint) {
         serverEntryPoint,
         '--host', '127.0.0.1',
         '--port', '9888',
+        '--builtin-extensions-dir', join(__dirname, '../../extensions'),
         '--accept-server-license-terms',
         '--without-connection-token'
       ], {

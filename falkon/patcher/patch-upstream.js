@@ -89,6 +89,7 @@ const PATCHES = [
     replace:
 `\tcreate(mainWindow.document.getElementById('workbench-container') || mainWindow.document.body, {
 \t\t...config,
+\t\twindowIndicator: config.windowIndicator ?? { label: 'Falkon', tooltip: 'Falkon IDE' },
 \t\tconfigurationDefaults: {
 \t\t\t'workbench.colorTheme': 'Default Dark Modern',
 \t\t\t'workbench.preferredDarkColorTheme': 'Default Dark Modern',
@@ -124,6 +125,100 @@ const PATCHES = [
     desc: 'Remove unused isStandalone import in workbench.ts',
     find: `import { isStandalone } from '../../../base/browser/browser.js';\nimport { addDisposableListener }`,
     replace: `import { addDisposableListener }`,
+  },
+  {
+    file: 'src/vs/code/browser/workbench/workbench.ts',
+    desc: 'Support file:// URL decoding for remote authority in WorkspaceProvider',
+    find:
+`\t\t\t\t// Folder
+\t\t\t\tcase WorkspaceProvider.QUERY_PARAM_FOLDER:
+\t\t\t\t\tif (config.remoteAuthority && value.startsWith(posix.sep)) {
+\t\t\t\t\t\t// when connected to a remote and having a value
+\t\t\t\t\t\t// that is a path (begins with a \`/\`), assume this
+\t\t\t\t\t\t// is a vscode-remote resource as simplified URL.
+\t\t\t\t\t\tworkspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
+\t\t\t\t\t} else {
+\t\t\t\t\t\tworkspace = { folderUri: URI.parse(value) };
+\t\t\t\t\t}
+\t\t\t\t\tfoundWorkspace = true;
+\t\t\t\t\tbreak;
+
+\t\t\t\t// Workspace
+\t\t\t\tcase WorkspaceProvider.QUERY_PARAM_WORKSPACE:
+\t\t\t\t\tif (config.remoteAuthority && value.startsWith(posix.sep)) {
+\t\t\t\t\t\t// when connected to a remote and having a value
+\t\t\t\t\t\t// that is a path (begins with a \`/\`), assume this
+\t\t\t\t\t\t// is a vscode-remote resource as simplified URL.
+\t\t\t\t\t\tworkspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
+\t\t\t\t\t} else {
+\t\t\t\t\t\tworkspace = { workspaceUri: URI.parse(value) };
+\t\t\t\t\t}
+\t\t\t\t\tfoundWorkspace = true;
+\t\t\t\t\tbreak;`,
+    replace:
+`\t\t\t\t// Folder
+\t\t\t\tcase WorkspaceProvider.QUERY_PARAM_FOLDER:
+\t\t\t\t\tif (config.remoteAuthority) {
+\t\t\t\t\t\tlet folderPath = value;
+\t\t\t\t\t\tif (folderPath.startsWith('file://')) {
+\t\t\t\t\t\t\ttry { folderPath = URI.parse(folderPath).path; } catch (_) {}
+\t\t\t\t\t\t}
+\t\t\t\t\t\tif (folderPath.startsWith(posix.sep)) {
+\t\t\t\t\t\t\tworkspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: folderPath, authority: config.remoteAuthority }) };
+\t\t\t\t\t\t} else {
+\t\t\t\t\t\t\tworkspace = { folderUri: URI.parse(value) };
+\t\t\t\t\t\t}
+\t\t\t\t\t} else {
+\t\t\t\t\t\tworkspace = { folderUri: URI.parse(value) };
+\t\t\t\t\t}
+\t\t\t\t\tfoundWorkspace = true;
+\t\t\t\t\tbreak;
+
+\t\t\t\t// Workspace
+\t\t\t\tcase WorkspaceProvider.QUERY_PARAM_WORKSPACE:
+\t\t\t\t\tif (config.remoteAuthority) {
+\t\t\t\t\t\tlet wsPath = value;
+\t\t\t\t\t\tif (wsPath.startsWith('file://')) {
+\t\t\t\t\t\t\ttry { wsPath = URI.parse(wsPath).path; } catch (_) {}
+\t\t\t\t\t\t}
+\t\t\t\t\t\tif (wsPath.startsWith(posix.sep)) {
+\t\t\t\t\t\t\tworkspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: wsPath, authority: config.remoteAuthority }) };
+\t\t\t\t\t\t} else {
+\t\t\t\t\t\t\tworkspace = { workspaceUri: URI.parse(value) };
+\t\t\t\t\t\t}
+\t\t\t\t\t} else {
+\t\t\t\t\t\tworkspace = { workspaceUri: URI.parse(value) };
+\t\t\t\t\t}
+\t\t\t\t\tfoundWorkspace = true;
+\t\t\t\t\tbreak;`,
+  },
+  {
+    file: 'src/vs/code/browser/workbench/workbench.ts',
+    desc: 'Support file:// scheme in encodeWorkspacePath for remote authority',
+    find: `\tprivate encodeWorkspacePath(uri: URI): string {\n\t\tif (this.config.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {`,
+    replace: `\tprivate encodeWorkspacePath(uri: URI): string {\n\t\tif (this.config.remoteAuthority && (uri.scheme === Schemas.vscodeRemote || uri.scheme === Schemas.file)) {`,
+  },
+  {
+    file: 'src/vs/workbench/services/label/common/labelService.ts',
+    desc: 'Omit [vscode-remote] suffix for local sidecar in labelService.ts',
+    find:
+`\tprivate appendWorkspaceSuffix(label: string, uri: URI): string {
+\t\tconst formatting = this.findFormatting(uri);
+\t\tconst suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : undefined;
+
+\t\treturn suffix ? \`\${label} [\${suffix}]\` : label;
+\t}`,
+    replace:
+`\tprivate appendWorkspaceSuffix(label: string, uri: URI): string {
+\t\tconst formatting = this.findFormatting(uri);
+\t\tconst suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : undefined;
+
+\t\tif (suffix === 'vscode-remote' || suffix === '127.0.0.1:9888' || uri.authority === '127.0.0.1:9888') {
+\t\t\treturn label;
+\t\t}
+
+\t\treturn suffix ? \`\${label} [\${suffix}]\` : label;
+\t}`,
   },
 
   // ┌─────────────────────────────────────────────────────────────────────────
@@ -269,6 +364,53 @@ const PATCHES = [
 
 \t\treturn uri;
 \t}`,
+  },
+  {
+    file: 'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',
+    desc: 'Always parse DOM builtin extensions in browser BuiltinExtensionsScannerService',
+    find:
+`\t\t\t\tif (environmentService.isBuilt) {
+\t\t\t\t\t// Built time configuration (do NOT modify)
+\t\t\t\t\tbundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
+\t\t\t\t} else {
+\t\t\t\t\t// Find builtin extensions by checking for DOM
+\t\t\t\t\t// eslint-disable-next-line no-restricted-syntax
+\t\t\t\t\tconst builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
+\t\t\t\t\tconst builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
+\t\t\t\t\tif (builtinExtensionsElementAttribute) {
+\t\t\t\t\t\ttry {
+\t\t\t\t\t\t\tbundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
+\t\t\t\t\t\t} catch (error) { /* ignore error*/ }
+\t\t\t\t\t}
+\t\t\t\t}`,
+    replace:
+`\t\t\t\t// Find builtin extensions by checking for DOM
+\t\t\t\t// eslint-disable-next-line no-restricted-syntax
+\t\t\t\tconst builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
+\t\t\t\tconst builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
+\t\t\t\tif (builtinExtensionsElementAttribute) {
+\t\t\t\t\ttry {
+\t\t\t\t\t\tbundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
+\t\t\t\t\t} catch (error) { /* ignore error*/ }
+\t\t\t\t}`,
+  },
+  {
+    file: 'src/vs/server/node/server.main.ts',
+    desc: 'Resolve server builtin extensions directory to root extensions folder',
+    find:
+`const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
+const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
+args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;`,
+    replace:
+`const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
+let BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
+if (!fs.existsSync(BUILTIN_EXTENSIONS_FOLDER_PATH) || fs.readdirSync(BUILTIN_EXTENSIONS_FOLDER_PATH).length <= 5) {
+\tconst parentExt = join(APP_ROOT, '..', 'extensions');
+\tif (fs.existsSync(parentExt)) {
+\t\tBUILTIN_EXTENSIONS_FOLDER_PATH = parentExt;
+\t}
+}
+args['builtin-extensions-dir'] = args['builtin-extensions-dir'] || BUILTIN_EXTENSIONS_FOLDER_PATH;`,
   },
 ];
 

@@ -512,6 +512,10 @@ export class LabelService extends Disposable implements ILabelService {
 		const formatting = this.findFormatting(uri);
 		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : undefined;
 
+		if (suffix === 'vscode-remote' || suffix === '127.0.0.1:9888' || uri.authority === '127.0.0.1:9888') {
+			return label;
+		}
+
 		return suffix ? `${label} [${suffix}]` : label;
 	}
 }

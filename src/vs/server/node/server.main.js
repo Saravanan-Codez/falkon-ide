@@ -34,8 +34,14 @@ const LOCAL_HISTORY_HOME = join(APP_SETTINGS_HOME, "History");
 const MACHINE_SETTINGS_HOME = join(USER_DATA_PATH, "Machine");
 args["user-data-dir"] = USER_DATA_PATH;
 const APP_ROOT = dirname(FileAccess.asFileUri("").fsPath);
-const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, "extensions");
-args["builtin-extensions-dir"] = BUILTIN_EXTENSIONS_FOLDER_PATH;
+let BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, "extensions");
+if (!fs.existsSync(BUILTIN_EXTENSIONS_FOLDER_PATH) || fs.readdirSync(BUILTIN_EXTENSIONS_FOLDER_PATH).length <= 5) {
+  const parentExt = join(APP_ROOT, "..", "extensions");
+  if (fs.existsSync(parentExt)) {
+    BUILTIN_EXTENSIONS_FOLDER_PATH = parentExt;
+  }
+}
+args["builtin-extensions-dir"] = args["builtin-extensions-dir"] || BUILTIN_EXTENSIONS_FOLDER_PATH;
 args["extensions-dir"] = args["extensions-dir"] || join(REMOTE_DATA_FOLDER, "extensions");
 [REMOTE_DATA_FOLDER, args["extensions-dir"], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME, LOCAL_HISTORY_HOME].forEach((f) => {
   try {

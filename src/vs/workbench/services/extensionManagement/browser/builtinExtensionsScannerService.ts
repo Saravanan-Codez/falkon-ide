@@ -53,19 +53,14 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 			if (builtinExtensionsServiceUrl) {
 				let bundledExtensions: IBundledExtension[] = [];
 
-				if (environmentService.isBuilt) {
-					// Built time configuration (do NOT modify)
-					bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
-				} else {
-					// Find builtin extensions by checking for DOM
-					// eslint-disable-next-line no-restricted-syntax
-					const builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
-					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
-					if (builtinExtensionsElementAttribute) {
-						try {
-							bundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
-						} catch (error) { /* ignore error*/ }
-					}
+				// Find builtin extensions by checking for DOM
+				// eslint-disable-next-line no-restricted-syntax
+				const builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
+				const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
+				if (builtinExtensionsElementAttribute) {
+					try {
+						bundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
+					} catch (error) { /* ignore error*/ }
 				}
 
 				this._cachedExtensions = Promise.all(bundledExtensions.map(async e => {
