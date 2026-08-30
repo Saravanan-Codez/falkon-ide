@@ -1,12 +1,11 @@
 /**
- * Tauri v2 IPC bridge for VS Code Web Workbench.
+ * Falkon IDE — Native Desktop Bridge Shim
  *
- * This script runs BEFORE the VS Code workbench initializes.
- * It:
- *  1. Registers a full IFileSystemProvider for file:// URIs via Tauri IPC
- *  2. Provides native file dialogs via Tauri IPC
- *  3. Bridges the terminal, search, and git IPC channels
- *  4. Exposes window.__vscode_tauri_bridge__ for the workbench init script
+ * Runs before the VS Code workbench loads to provide:
+ * 1. Native File Dialogs (openFolder, openFile, saveFile) via Tauri IPC
+ * 2. Window Controls (minimize, maximize, close)
+ * 3. Settings persistence
+ * 4. Marketplace CORS Proxy
  */
 
 let _hasWarnedNoTauri = false;
@@ -17,43 +16,9 @@ const invoke = (cmd, args) => {
   if (win.__TAURI_INVOKE__) return win.__TAURI_INVOKE__(cmd, args);
   if (!_hasWarnedNoTauri) {
     _hasWarnedNoTauri = true;
-    console.info('[Tauri Shim] Running in browser environment (Tauri IPC native bridge inactive).');
+    console.info('[Falkon Desktop] Running in desktop shell mode.');
   }
   return Promise.resolve(null);
-};
-
-const normalizePath = (p) => {
-  if (!p) return '';
-  if (typeof p === 'string') {
-    let clean = p.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
-    if (/^[a-zA-Z]:/.test(clean)) {
-      clean = clean.replace(/\\/g, '/');
-    }
-    return decodeURIComponent(clean);
-  }
-  if (p && typeof p === 'object') {
-    if (typeof p.fsPath === 'string') return p.fsPath;
-    if (typeof p.path === 'string') return normalizePath(p.path);
-  }
-  return String(p);
-};
-
-// ─────────────────────────────────────────────
-//  File System Provider API (exposed to workbench init)
-// ─────────────────────────────────────────────
-
-window.__tauri_fs__ = {
-  readFile: (path) => invoke('read_file', { filePath: normalizePath(path) }),
-  readFileBytes: (path) => invoke('read_file_bytes', { filePath: normalizePath(path) }),
-  writeFile: (path, content) => invoke('write_file', { filePath: normalizePath(path), content: String(content ?? '') }),
-  writeFileBytes: (path, bytes) => invoke('write_file_bytes', { filePath: normalizePath(path), bytes: Array.from(bytes || []) }),
-  copy: (source, target) => invoke('copy_file', { source: normalizePath(source), target: normalizePath(target) }),
-  readDir: (path) => invoke('read_dir', { dirPath: normalizePath(path) }),
-  stat: (path) => invoke('stat_file', { filePath: normalizePath(path) }),
-  exists: (path) => invoke('file_exists', { filePath: normalizePath(path) }),
-  mkdir: (path) => invoke('create_dir', { dirPath: normalizePath(path) }),
-  rename: (oldPath, newPath) => invoke('rename_file', { oldPath: normalizePath(oldPath), newPath: normalizePath(newPath) }),
-  delete: (path) => invoke('delete_file', { filePath: normalizePath(path) }),
 };
 
 // ─────────────────────────────────────────────
@@ -66,16 +31,16 @@ window.__tauri_dialogs__ = {
       const res = await invoke('open_folder_dialog', {});
       return typeof res === 'string' ? res : null;
     } catch (err) {
-      console.warn('[Tauri Dialogs] openFolder failed:', err);
+      console.warn('[Falkon Dialogs] openFolder failed:', err);
       return null;
     }
   },
-  openFile: async (filters) => {
+  openFile: async (defaultPath) => {
     try {
-      const res = await invoke('open_file_dialog', { filters: Array.isArray(filters) ? filters : [] });
+      const res = await invoke('open_file_dialog', { defaultPath: typeof defaultPath === 'string' ? defaultPath : null });
       return typeof res === 'string' ? res : null;
     } catch (err) {
-      console.warn('[Tauri Dialogs] openFile failed:', err);
+      console.warn('[Falkon Dialogs] openFile failed:', err);
       return null;
     }
   },
@@ -84,125 +49,10 @@ window.__tauri_dialogs__ = {
       const res = await invoke('save_file_dialog', { defaultName: defaultName ? String(defaultName) : null });
       return typeof res === 'string' ? res : null;
     } catch (err) {
-      console.warn('[Tauri Dialogs] saveFile failed:', err);
+      console.warn('[Falkon Dialogs] saveFile failed:', err);
       return null;
     }
   },
-};
-
-// ─────────────────────────────────────────────
-//  Terminal (PTY)
-// ─────────────────────────────────────────────
-
-const listen = (event, handler) => {
-  const win = window;
-  if (win.__TAURI__?.event?.listen) {
-    return win.__TAURI__.event.listen(event, handler);
-  }
-  if (win.__TAURI_INTERNALS__?.transformCallback && win.__TAURI_INTERNALS__?.invoke) {
-    const cbId = win.__TAURI_INTERNALS__.transformCallback((e) => handler(e));
-    return win.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
-      event,
-      target: { kind: 'Any' },
-      handler: cbId
-    });
-  }
-  return Promise.resolve(() => {});
-};
-
-window.__tauri_terminal__ = {
-  create: (cwd, cols, rows) => {
-    let cleanCwd = typeof cwd === 'string' ? cwd : null;
-    if (cleanCwd) {
-      cleanCwd = cleanCwd.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '');
-    }
-    return invoke('terminal_create', {
-      cwd: cleanCwd,
-      cols: (typeof cols === 'number' && cols > 0) ? Math.floor(cols) : 80,
-      rows: (typeof rows === 'number' && rows > 0) ? Math.floor(rows) : 24
-    });
-  },
-  write: (id, data) => {
-    if (!id || data === undefined || data === null) return;
-    invoke('terminal_write', { id, data: String(data) });
-  },
-  resize: (id, cols, rows) => invoke('terminal_resize', {
-    id,
-    cols: (typeof cols === 'number' && cols > 0) ? Math.floor(cols) : 80,
-    rows: (typeof rows === 'number' && rows > 0) ? Math.floor(rows) : 24
-  }),
-  kill: (id) => invoke('terminal_kill', { id }),
-  onData: (id, cb) => {
-    const unlistenPromise = listen(`terminal-data-${id}`, (e) => {
-      let str = '';
-      if (typeof e === 'string') {
-        str = e;
-      } else if (e && e.payload && typeof e.payload.payload === 'string') {
-        str = e.payload.payload;
-      } else if (e && typeof e.payload === 'string') {
-        str = e.payload;
-      } else if (e && e.payload !== undefined && e.payload !== null) {
-        str = typeof e.payload === 'object' ? JSON.stringify(e.payload) : String(e.payload);
-      }
-      if (str && typeof cb === 'function') {
-        cb(str);
-      }
-    });
-    return () => {
-      unlistenPromise.then(u => typeof u === 'function' && u());
-    };
-  },
-  onExit: (id, cb) => {
-    const unlistenPromise = listen(`terminal-exit-${id}`, () => {
-      if (typeof cb === 'function') cb();
-    });
-    return () => {
-      unlistenPromise.then(u => typeof u === 'function' && u());
-    };
-  },
-};
-
-// ─────────────────────────────────────────────
-//  Search
-// ─────────────────────────────────────────────
-
-window.__tauri_search__ = {
-  searchText: (workspace, pattern, opts) => invoke('search_text', {
-    workspace, pattern,
-    include: opts?.include ?? null,
-    exclude: opts?.exclude ?? null,
-    caseSensitive: opts?.caseSensitive ?? false,
-    maxResults: opts?.maxResults ?? 500,
-  }),
-  searchFiles: (workspace, pattern) => invoke('search_files', { workspace, pattern }),
-};
-
-// ─────────────────────────────────────────────
-//  Git SCM
-// ─────────────────────────────────────────────
-
-window.__tauri_git__ = {
-  branch: (cwd) => invoke('git_branch', { cwd: cwd ?? null }),
-  status: (cwd) => invoke('git_status', { cwd: cwd ?? null }),
-  isRepo: (cwd) => invoke('git_is_repo', { cwd: cwd ?? null }),
-  log: (cwd, max) => invoke('git_log', { cwd, max: max ?? 50 }),
-  diff: (cwd, staged) => invoke('git_diff', { cwd, staged: staged ?? false }),
-  stage: (cwd, path) => invoke('git_stage', { cwd, path }),
-  unstage: (cwd, path) => invoke('git_unstage', { cwd, path }),
-  commit: (cwd, message) => invoke('git_commit', { cwd, message }),
-  push: (cwd) => invoke('git_push', { cwd }),
-  pull: (cwd) => invoke('git_pull', { cwd }),
-  checkout: (cwd, branch, create) => invoke('git_checkout', { cwd, branch, create: create ?? false }),
-};
-
-// ─────────────────────────────────────────────
-//  Settings persistence
-// ─────────────────────────────────────────────
-
-window.__tauri_settings__ = {
-  read: () => invoke('read_settings', {}),
-  write: (content) => invoke('write_settings', { content }),
-  readKeybindings: () => invoke('read_keybindings', {}),
 };
 
 // ─────────────────────────────────────────────
@@ -213,272 +63,148 @@ window.__tauri_window__ = {
   minimize: () => invoke('window_minimize', {}),
   toggleMaximize: () => invoke('window_toggle_maximize', {}),
   close: () => invoke('window_close', {}),
+  openExternal: (url) => invoke('open_external_url', { url }),
 };
 
 // ─────────────────────────────────────────────
-//  Legacy electronAPI shim (for any remaining calls)
+//  Settings Persistence
 // ─────────────────────────────────────────────
 
-window.electronAPI = {
-  invoke: async (channel, ...args) => {
-    switch (channel) {
-      case 'read-file': return window.__tauri_fs__.readFile(args[0]);
-      case 'write-file':
-      case 'save-file': return window.__tauri_fs__.writeFile(args[0], args[1]);
-      case 'read-dir': return window.__tauri_fs__.readDir(args[0]);
-      case 'stat-file': return window.__tauri_fs__.stat(args[0]);
-      case 'file-exists': return window.__tauri_fs__.exists(args[0]);
-      case 'create-dir':
-      case 'create-folder': return window.__tauri_fs__.mkdir(args[0]);
-      case 'rename-file': return window.__tauri_fs__.rename(args[0], args[1]);
-      case 'delete-file': return window.__tauri_fs__.delete(args[0]);
-      case 'open-folder': return window.__tauri_dialogs__.openFolder();
-      case 'open-file': return window.__tauri_dialogs__.openFile(args[0]);
-      case 'save-file-dialog': return window.__tauri_dialogs__.saveFile(args[0]);
-      case 'git-branch': return window.__tauri_git__.branch(args[0]);
-      case 'git-status': return window.__tauri_git__.status(args[0]);
-      case 'git-is-repo': return window.__tauri_git__.isRepo(args[0]);
-      case 'run-falkon': return invoke('run_falkon', { entry: args[0] || '', options: args[1] || {} });
-      default:
-        console.warn(`[electronAPI] Unknown channel: ${channel}`);
-        return null;
-    }
-  },
-  on: () => () => {},
-  process: { platform: navigator.platform || 'Win32', env: {} }
+window.__tauri_settings__ = {
+  read: () => invoke('read_settings', {}),
+  write: (content) => invoke('write_settings', { content }),
+  readKeybindings: () => invoke('read_keybindings', {}),
 };
 
-console.log('[Tauri Shim] All IPC bridges registered:', {
-  fs: !!window.__tauri_fs__,
-  dialogs: !!window.__tauri_dialogs__,
-  terminal: !!window.__tauri_terminal__,
-  search: !!window.__tauri_search__,
-  git: !!window.__tauri_git__,
-  settings: !!window.__tauri_settings__,
-});
-
 // ─────────────────────────────────────────────
-//  Desktop App Event Behaviors
+//  Deep Link URI Handler
 // ─────────────────────────────────────────────
 
-// Prevent browser navigation when files are dropped onto the app
-window.addEventListener('dragover', (e) => e.preventDefault(), false);
-window.addEventListener('drop', (e) => {
-  const tag = e.target?.tagName?.toLowerCase();
-  if (tag !== 'input' && tag !== 'textarea') {
-    e.preventDefault();
-  }
-}, false);
-
-// ─────────────────────────────────────────────
-//  Marketplace CORS Bypass - fetch + XHR
-//  VS Code's extension gallery uses XMLHttpRequest,
-//  NOT window.fetch, so we must intercept both.
-// ─────────────────────────────────────────────
-
-function isMarketplaceUrl(url) {
-  return typeof url === 'string' && (
-    url.includes('marketplace.visualstudio.com') ||
-    url.includes('open-vsx.org')
-  );
-}
-
-function parseHeaders(headersInput) {
-  const result = {};
-  if (!headersInput) return result;
-  if (typeof Headers !== 'undefined' && headersInput instanceof Headers) {
-    headersInput.forEach((val, key) => {
-      if (typeof key === 'string' && typeof val === 'string') {
-        result[key.toLowerCase()] = val;
-      }
-    });
-  } else if (typeof headersInput === 'object') {
-    for (const [key, val] of Object.entries(headersInput)) {
-      if (typeof key === 'string' && typeof val === 'string') {
-        result[key.toLowerCase()] = val;
-      }
+window.__falkon_handle_uri = (rawUri) => {
+  try {
+    const uri = typeof rawUri === 'string' ? rawUri : '';
+    if (uri && (uri.startsWith('code-oss://') || uri.startsWith('vscode://'))) {
+      console.log('[Falkon DeepLink] Received URI:', uri);
+      window.dispatchEvent(new CustomEvent('falkon:deep-link', { detail: { uri } }));
     }
+  } catch (err) {
+    console.error('[Falkon DeepLink] Error handling URI:', err);
   }
-  return result;
-}
+};
 
-async function proxyMarketplaceRequest(url, method, headers, body) {
-  const safeHeaders = parseHeaders(headers);
-  delete safeHeaders['accept-encoding'];
-  delete safeHeaders['content-length'];
-  delete safeHeaders['user-agent'];
-  delete safeHeaders['accept'];
+// ─────────────────────────────────────────────
+//  Marketplace CORS Proxy
+// ─────────────────────────────────────────────
 
-  return invoke('marketplace_proxy', {
-    url,
-    method: method || 'GET',
-    headers: safeHeaders,
-    body: body ? String(body) : null
-  });
-}
-
-// ── Intercept XMLHttpRequest ──────────────────
-const OriginalXHR = window.XMLHttpRequest;
-window.XMLHttpRequest = function() {
-  const xhr = new OriginalXHR();
-  let _method = 'GET';
-  let _url = '';
-  let _requestHeaders = {};
-
-  const originalOpen = xhr.open.bind(xhr);
-  xhr.open = function(method, url, ...rest) {
-    _method = method;
-    _url = typeof url === 'string' ? url : (url?.toString ? url.toString() : String(url));
-    return originalOpen(method, url, ...rest);
+(function patchNetworkForMarketplace() {
+  const isMarketplaceUrl = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    return (
+      url.includes('marketplace.visualstudio.com') ||
+      url.includes('open-vsx.org') ||
+      url.includes('vsassets.io') ||
+      url.includes('vscode-cdn.net')
+    );
   };
 
-  const originalSetRequestHeader = xhr.setRequestHeader.bind(xhr);
-  xhr.setRequestHeader = function(name, value) {
-    if (typeof name === 'string') {
-      _requestHeaders[name.toLowerCase()] = String(value);
-    }
-    return originalSetRequestHeader(name, value);
-  };
-
-  const originalSend = xhr.send.bind(xhr);
-  xhr.send = function(body) {
-    if (!isMarketplaceUrl(_url)) {
-      return originalSend(body);
-    }
-
-    proxyMarketplaceRequest(_url, _method, _requestHeaders, body)
-      .then(text => {
-        const defProp = (prop, val) => {
-          try {
-            Object.defineProperty(xhr, prop, { get: () => val, configurable: true });
-          } catch (_) {
-            try { xhr[prop] = val; } catch (_) {}
-          }
-        };
-        defProp('status', 200);
-        defProp('statusText', 'OK');
-        defProp('readyState', 4);
-        defProp('responseText', text);
-        let parsedResp = text;
-        if (xhr.responseType === 'json') {
-          try {
-            parsedResp = JSON.parse(text);
-          } catch (_) {
-            parsedResp = null;
+  const origFetch = window.fetch;
+  window.fetch = async function (input, init) {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+    if (url && isMarketplaceUrl(url)) {
+      try {
+        const method = (init?.method || 'GET').toUpperCase();
+        const headers = {};
+        if (init?.headers) {
+          if (init.headers instanceof Headers) {
+            init.headers.forEach((v, k) => { headers[k] = v; });
+          } else if (Array.isArray(init.headers)) {
+            init.headers.forEach(([k, v]) => { headers[k] = v; });
+          } else {
+            Object.assign(headers, init.headers);
           }
         }
-        defProp('response', parsedResp);
-        xhr.getAllResponseHeaders = () => 'content-type: application/json\r\n';
-        xhr.getResponseHeader = (name) => {
-          if (name && name.toLowerCase() === 'content-type') return 'application/json';
-          return null;
-        };
-        if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
-        if (typeof xhr.onload === 'function') xhr.onload();
-        xhr.dispatchEvent(new Event('readystatechange'));
-        xhr.dispatchEvent(new Event('load'));
-        xhr.dispatchEvent(new Event('loadend'));
-      })
-      .catch(err => {
-        console.warn('[Falkon XHR Proxy] Proxy error:', err);
-        const defProp = (prop, val) => {
-          try {
-            Object.defineProperty(xhr, prop, { get: () => val, configurable: true });
-          } catch (_) {
-            try { xhr[prop] = val; } catch (_) {}
-          }
-        };
-        defProp('status', 500);
-        defProp('statusText', 'Internal Server Error');
-        defProp('readyState', 4);
-        if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
-        if (typeof xhr.onerror === 'function') xhr.onerror();
-        xhr.dispatchEvent(new Event('readystatechange'));
-        xhr.dispatchEvent(new Event('error'));
-      });
+        const body = typeof init?.body === 'string' ? init.body : undefined;
+        const text = await invoke('marketplace_proxy', {
+          targetUrl: url,
+          method,
+          headers: Object.keys(headers).length > 0 ? headers : null,
+          body: body ?? null,
+        });
+        if (typeof text === 'string') {
+          return new Response(text, {
+            status: 200,
+            statusText: 'OK',
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      } catch (err) {
+        console.warn('[Falkon Marketplace Proxy] Fetch error:', err);
+      }
+    }
+    return origFetch.apply(this, arguments);
   };
 
-  return xhr;
-};
-window.XMLHttpRequest.prototype = OriginalXHR.prototype;
+  const OrigXHR = window.XMLHttpRequest;
+  window.XMLHttpRequest = function () {
+    const xhr = new OrigXHR();
+    let _targetUrl = '';
+    let _method = 'GET';
+    let _headers = {};
 
-// ── Intercept window.fetch ────────────────────
-const originalFetch = window.fetch;
-window.fetch = async function(resource, init) {
-  let url = '';
-  let method = 'GET';
-  let headers = {};
-  let body = null;
+    const origOpen = xhr.open;
+    xhr.open = function (method, url) {
+      _method = (method || 'GET').toUpperCase();
+      _targetUrl = String(url || '');
+      return origOpen.apply(this, arguments);
+    };
 
-  if (typeof resource === 'string') {
-    url = resource;
-  } else if (resource && typeof resource.url === 'string') {
-    url = resource.url;
-    method = resource.method || 'GET';
-    if (resource.headers) {
-      headers = parseHeaders(resource.headers);
-    }
-  } else if (resource && typeof resource.toString === 'function') {
-    url = resource.toString();
-  }
+    const origSetRequestHeader = xhr.setRequestHeader;
+    xhr.setRequestHeader = function (header, value) {
+      if (header) _headers[header] = value;
+      return origSetRequestHeader.apply(this, arguments);
+    };
 
-  if (init) {
-    if (init.method) method = init.method;
-    if (init.headers) headers = { ...headers, ...parseHeaders(init.headers) };
-    if (init.body) body = String(init.body);
-  }
-
-  if (isMarketplaceUrl(url)) {
-    try {
-      const responseText = await proxyMarketplaceRequest(url, method, headers, body);
-      if (typeof responseText === 'string') {
-        return new Response(responseText, {
-          status: 200,
-          statusText: 'OK',
-          headers: { 'Content-Type': 'application/json' }
-        });
+    const origSend = xhr.send;
+    xhr.send = function (body) {
+      if (isMarketplaceUrl(_targetUrl)) {
+        invoke('marketplace_proxy', {
+          targetUrl: _targetUrl,
+          method: _method,
+          headers: Object.keys(_headers).length > 0 ? _headers : null,
+          body: typeof body === 'string' ? body : null,
+        })
+          .then((text) => {
+            if (typeof text !== 'string') return;
+            const defProp = (name, val) => {
+              try { Object.defineProperty(xhr, name, { value: val, writable: true, configurable: true }); }
+              catch (_) { xhr[name] = val; }
+            };
+            defProp('status', 200);
+            defProp('statusText', 'OK');
+            defProp('readyState', 4);
+            defProp('responseText', text);
+            let parsedResp = text;
+            if (xhr.responseType === 'json') {
+              try { parsedResp = JSON.parse(text); } catch (_) { parsedResp = null; }
+            }
+            defProp('response', parsedResp);
+            xhr.getAllResponseHeaders = () => 'content-type: application/json\r\n';
+            xhr.getResponseHeader = (name) => (name && name.toLowerCase() === 'content-type' ? 'application/json' : null);
+            if (typeof xhr.onreadystatechange === 'function') xhr.onreadystatechange();
+            if (typeof xhr.onload === 'function') xhr.onload();
+            xhr.dispatchEvent(new Event('readystatechange'));
+            xhr.dispatchEvent(new Event('load'));
+            xhr.dispatchEvent(new Event('loadend'));
+          })
+          .catch((err) => {
+            console.warn('[Falkon Marketplace Proxy] XHR error:', err);
+            origSend.call(xhr, body);
+          });
+        return;
       }
-    } catch (err) {
-      console.warn('[Falkon Fetch Proxy] Proxy error:', err);
-      return new Response(JSON.stringify({ error: String(err) }), {
-        status: 500,
-        statusText: 'Internal Server Error',
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  }
-  return originalFetch.apply(this, arguments);
-};
+      return origSend.apply(this, arguments);
+    };
 
-// ─────────────────────────────────────────────
-// Extension Host & LSP IPC Helpers
-// ─────────────────────────────────────────────
-window.__falkon_ext_host__ = {
-  start: (nodePath) => invoke('ext_host_start', { nodePath: nodePath ?? null }),
-  stop: () => invoke('ext_host_stop'),
-  status: () => invoke('ext_host_status'),
-  restart: (nodePath) => invoke('ext_host_restart', { nodePath: nodePath ?? null }),
-};
-
-window.__falkon_lsp__ = {
-  start: (languageId, serverCmd, serverArgs, cwd) => invoke('lsp_start', {
-    languageId,
-    serverCmd,
-    serverArgs: Array.isArray(serverArgs) ? serverArgs : [],
-    cwd: cwd ?? null
-  }),
-  send: (sessionId, message) => invoke('lsp_send', { sessionId, message }),
-  stop: (sessionId) => invoke('lsp_stop', { sessionId }),
-  list: () => invoke('lsp_list'),
-};
-
-window.__falkon_process__ = {
-  spawn: (command, args, cwd) => invoke('process_spawn', {
-    command,
-    args: Array.isArray(args) ? args : [],
-    cwd: cwd ?? null
-  }),
-  kill: (sessionId) => invoke('process_kill', { sessionId }),
-  sendStdin: (sessionId, input) => invoke('process_send_stdin', { sessionId, input }),
-  list: () => invoke('process_list'),
-};
+    return xhr;
+  };
+})();

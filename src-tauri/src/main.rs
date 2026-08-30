@@ -4,22 +4,14 @@ mod commands;
 mod error;
 mod services;
 
-
-use commands::filesystem::*;
-use commands::git::*;
+use commands::dialogs::*;
+use commands::ext_host::*;
 use commands::marketplace::*;
 use commands::runner::*;
-use commands::search::*;
 use commands::settings::*;
-use commands::terminal::*;
 use commands::window::*;
-use commands::ext_host::*;
-use commands::lsp::*;
-use commands::process_manager::*;
-use services::workspace::WorkspaceService;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 fn main() {
     #[cfg(target_os = "linux")]
@@ -59,22 +51,14 @@ fn main() {
         }
     }
 
-    let pty_store: PtyStore = Arc::new(Mutex::new(HashMap::new()));
-    let workspace_service = WorkspaceService::new();
     let ext_host_state = ExtHostState::new();
-    let lsp_state = LspState::new();
-    let process_mgr_state = ProcessManagerState::new();
 
     // Store the last pending deep link URI received before the webview was ready.
     let pending_uri: std::sync::Arc<Mutex<Option<String>>> = std::sync::Arc::new(Mutex::new(None));
     let pending_uri_clone = pending_uri.clone();
 
     tauri::Builder::default()
-        .manage(pty_store)
-        .manage(workspace_service)
         .manage(ext_host_state)
-        .manage(lsp_state)
-        .manage(process_mgr_state)
         .on_page_load(move |webview, payload| {
             if payload.event() == tauri::webview::PageLoadEvent::Finished {
                 if let Ok(mut lock) = pending_uri_clone.lock() {
@@ -88,7 +72,7 @@ fn main() {
         })
         .setup(move |app| {
             // Parse incoming CLI args for OAuth deep-link callback URLs
-            let _ = app; // app used implicitly via tauri internals
+            let _ = app;
             let args: Vec<String> = std::env::args().collect();
             for arg in args {
                 if arg.starts_with("code-oss://") || arg.starts_with("vscode://") {
@@ -100,71 +84,28 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // File system
-            read_file,
-            read_file_bytes,
-            write_file,
-            write_file_bytes,
-            copy_file,
-            read_dir,
-            stat_file,
-            file_exists,
-            create_dir,
-            rename_file,
-            create_temp_file,
-            delete_file,
-            // File dialogs
+            // Native File Dialogs
             open_folder_dialog,
             open_file_dialog,
             save_file_dialog,
-            // Window controls
+            // Native Window Controls
             window_minimize,
             window_toggle_maximize,
             window_close,
             open_external_url,
-            // Settings
+            // Settings persistence
             read_settings,
             write_settings,
             read_keybindings,
-            // Terminal
-            terminal_create,
-            terminal_write,
-            terminal_resize,
-            terminal_kill,
-            // Search
-            search_text,
-            search_files,
-            // Git
-            git_branch,
-            git_status,
-            git_is_repo,
-            git_log,
-            git_diff,
-            git_stage,
-            git_unstage,
-            git_commit,
-            git_push,
-            git_pull,
-            git_checkout,
-            // Marketplace CORS proxy
+            // Marketplace CORS Proxy
             marketplace_proxy,
-            // Runners
+            // Code Runner
             run_falkon,
-            // Extension Host sidecar
+            // Node Extension Host / Server Supervisor
             ext_host_start,
             ext_host_stop,
             ext_host_status,
             ext_host_restart,
-            // LSP manager
-            lsp_start,
-            lsp_send,
-            lsp_stop,
-            lsp_list,
-            // Process manager
-            process_spawn,
-            process_kill,
-            process_send_stdin,
-            process_list
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

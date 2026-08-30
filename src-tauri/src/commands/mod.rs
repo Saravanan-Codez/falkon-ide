@@ -1,11 +1,6 @@
-pub mod filesystem;
-pub mod terminal;
-pub mod search;
-pub mod git;
-pub mod window;
-pub mod marketplace;
-pub mod settings;
-pub mod runner;
+pub mod dialogs;
 pub mod ext_host;
-pub mod lsp;
-pub mod process_manager;
+pub mod marketplace;
+pub mod runner;
+pub mod settings;
+pub mod window;

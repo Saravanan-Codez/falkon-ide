@@ -1,5 +1,6 @@
 use crate::error::FalkonError;
-use crate::services::process::ProcessService;
+use serde_json::json;
+use std::process::Command;
 
 #[tauri::command]
 pub fn run_falkon(
@@ -29,5 +30,20 @@ pub fn run_falkon(
     full_args.extend(args);
 
     let prog = if cfg!(windows) { "python" } else { "python3" };
-    ProcessService::run_command(prog, &full_args, cwd)
+    let mut cmd = Command::new(prog);
+    cmd.args(&full_args);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+
+    let output = cmd.output().map_err(|e| FalkonError::ProcessSpawnFailed {
+        command: prog.to_string(),
+        message: e.to_string(),
+    })?;
+
+    Ok(json!({
+        "code": output.status.code().unwrap_or(-1),
+        "stdout": String::from_utf8_lossy(&output.stdout).to_string(),
+        "stderr": String::from_utf8_lossy(&output.stderr).to_string(),
+    }))
 }
